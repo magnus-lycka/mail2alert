@@ -94,18 +94,19 @@ Configuration for mail2alert might look something along these lines:
  - mail2alert
    - listen-smtp
    - remote-smtp
-   - gocd
-     - url
-     - user
-     - password
-     - filter
-     - pipelinegroups
-        - name
-           - event: action
-     - pipelines
-        - filter
-        - name
-           - event
-             - action
+   - process
+     - gocd
+       - url
+       - user
+       - password
+       - filter
+       - pipelinegroups
+          - name
+             - event: action
+       - pipelines
+          - filter
+          - name
+             - event
+               - action
 
 The tricky part is that the `pipelines` part will get updated on the fly...
