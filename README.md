@@ -100,7 +100,8 @@ Configuration for mail2alert might look something along these lines:
      - password
      - filter
      - pipelinegroups
-       - [name: {event: action}]
+       - name
+         - event: action
      - pipelines
        - filter
        - name
