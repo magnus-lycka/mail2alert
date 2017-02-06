@@ -98,11 +98,13 @@ Configuration for mail2alert might look something along these lines:
      - url
      - user
      - password
+     - filter
      - pipelinegroups
-       - [name: action]
+       - [name: {event: action}]
      - pipelines
+       - filter
        - name
-         - alert
+         - event
            - action
 
 The tricky part is that the `pipelines` part will get updated on the fly...
