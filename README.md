@@ -17,6 +17,7 @@ The core process is a small SMTP server. Action for received
 emails can be one of:
   - send
   - process
+
 The action can (as it looks right now) be determined from
 the recipient address.
 
@@ -91,7 +92,8 @@ from a configuration setting for each pipeline group.
 Configuration for mail2alert might look something along these lines:
 
  - mail2alert
-   - smtp
+   - listen-smtp
+   - remote-smtp
    - gocd
      - url
      - user
