@@ -94,6 +94,7 @@ Configuration for mail2alert might look something along these lines:
  - mail2alert
    - listen-smtp
    - remote-smtp
+   - admin-email
    - process
      - gocd
        - url
