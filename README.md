@@ -111,3 +111,20 @@ Configuration for mail2alert might look something along these lines:
                - action
 
 The tricky part is that the `pipelines` part will get updated on the fly...
+
+### Toying...
+
+>>> from smtplib import SMTP
+>>> from email.message import EmailMessage
+>>> msg = EmailMessage()
+>>> msg['From']='xx@xx.com'
+>>> msg['To']='yy@yy.com'
+>>> msg['Subject']='Zubject'
+>>> msg.set_content('Det var en gång...')
+>>> with SMTP('smtp.xxx.xxx') as smtp:
+...     smtp.send_message(msg)
+... 
+{}
+>>> 
+
+
