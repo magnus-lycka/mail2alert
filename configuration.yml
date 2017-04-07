@@ -1,0 +1,9 @@
+---
+local-smtp: localhost:1025
+remote-smtp: localhost:8025
+admin-email: admin@example.com
+process:
+  - name: gocd
+    url: http://go/go
+    user: $GO_USER
+    passwd: $GO_PASS

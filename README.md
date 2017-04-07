@@ -35,6 +35,18 @@ a web service instead of an email address.
 
 ## GoCD settings
 
+First of all, there are two settings which are needed in the
+GoCD server:
+  - In Admin => Server Configuration=> Email Notification,
+    configure hostname and port to send emails to mail2alert.
+
+  - For some user, in Preferences => Notifications set email
+    to a value which can be used to identify emails by
+    mail2alert as described below, and set one filter for the
+    user to `[Any Pipeline] [Any Stage] All All`
+    - To Be IInvestigated: Does this user need read permissions on all
+      pipelines groups?
+
 Our idea is that GoCD pipeline configurations can have a
 parameter whose name starts with `MAIL2ALERT_`. For instance
 `MAIL2ALERT_BREAKS` or `MAIL2ALERT_FIXED_1`. The part after
