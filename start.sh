@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
 
-#docker network create mail2alert
-
 docker run \
     -d \
     --name mail2alert-redis \
+    --net=host \
     --restart=always \
     --publish 6379:6379 \
     --volume /storage/mail2alert/redis:/var/lib/redis \
@@ -13,10 +12,9 @@ docker run \
 docker run \
     -d \
     --name mail2alert-app \
+    --net=host \
     --restart=always \
     --publish 1025:1025 \
     --publish 50101:50101 \
+    --publish 50102:50102 \
     mail2alert
-
-#    --net mail2alert \
-#    --net mail2alert \

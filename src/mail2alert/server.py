@@ -6,7 +6,7 @@ from aiosmtpd.handlers import Proxy
 import logging
 
 from .config import Configuration
-from .gocd import Manager
+from . import gocd
 
 """
 This is a mail proxy server based on Python 3 standard smtpd.PureProxy.
@@ -21,6 +21,13 @@ with other mechanisms than email.
 """
 
 
+async def hearbeat(seconds_to_sleep=1):
+    while 1:
+        logging.debug('sleeping for: {0} seconds'.format(seconds_to_sleep))
+        await asyncio.sleep(seconds_to_sleep)
+        seconds_to_sleep *= 2
+
+
 class Mail2AlertProxy(Proxy):
     def __init__(self, host, port, managers):
         self.mail2alert_managers = managers
@@ -28,12 +35,11 @@ class Mail2AlertProxy(Proxy):
 
     def _deliver(self, mailfrom, rcpttos, data):
         for manager in self.mail2alert_managers:
-            manager.read_message(mailfrom, rcpttos, data)
-            if manager.wants_message():
-                mailfrom, rcpttos, data = manager.process_message()
+            if manager.wants_message(mailfrom, rcpttos, data):
+                mailfrom, rcpttos, data = manager.process_message(mailfrom, rcpttos, data)
                 break
         if rcpttos:
-            super()._deliver(mailfrom, rcpttos, data)
+            return super()._deliver(mailfrom, rcpttos, data)
 
 
 def host_port(text, default_port=25):
@@ -48,8 +54,9 @@ async def proxy_mail(loop):
     cnf = Configuration()
     local_host, local_port = host_port(cnf['local-smtp'])
     remote_host, remote_port = host_port(cnf['remote-smtp'])
+    managers = [globals()[manager['name']].Manager(manager) for manager in cnf['managers']]
     cont = Controller(
-        Mail2AlertProxy(remote_host, remote_port, [Manager(cnf)]),
+        Mail2AlertProxy(remote_host, remote_port, managers),
         hostname=local_host,
         port=local_port)
     cont.start()
@@ -59,6 +66,7 @@ def main():
     logging.basicConfig(level=logging.DEBUG)
     loop = asyncio.get_event_loop()
     loop.create_task(proxy_mail(loop=loop))
+    loop.create_task(hearbeat())
     try:
         with aiomonitor.start_monitor(loop=loop):
             logging.info("Now you can connect with: nc localhost 50101")

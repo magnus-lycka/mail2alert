@@ -2,8 +2,22 @@
 local-smtp: localhost:1025
 remote-smtp: localhost:8025
 admin-email: admin@example.com
-process:
+managers:
   - name: gocd
     url: http://go/go
     user: $GO_USER
     passwd: $GO_PASS
+    message-we-want:
+      rcpt: mail2alert@example.com
+    rules:
+      - actions:
+          - mailto:cat@example.com
+        filter:
+          events:
+            - BREAKS
+            - FIXED
+          function: pipelines.in_group
+          args:
+              - cats_group
+
+

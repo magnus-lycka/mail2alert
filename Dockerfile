@@ -7,5 +7,8 @@ WORKDIR /usr/src/mail2alert
 COPY . /usr/src/mail2alert
 RUN pip install --no-cache-dir -r requirements.txt
 ENV PYTHONPATH /usr/src/mail2alert/src
+EXPOSE 1025
+EXPOSE 50101
+EXPOSE 50102
 
 CMD [ "python", "./mail2alert" ]
