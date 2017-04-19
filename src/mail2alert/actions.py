@@ -1,5 +1,6 @@
 import logging
 
+
 class Actions:
     def __init__(self, target_strings):
         self.mailto = []
@@ -9,4 +10,3 @@ class Actions:
                 self.mailto.append(what)
             else:
                 logging.error('Unexpected action: ' + text)
-

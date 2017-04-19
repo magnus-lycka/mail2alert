@@ -90,3 +90,6 @@ ENV/
 
 # site specific config in test
 src/test/configuration.yml
+
+# Jetbrains
+.idea

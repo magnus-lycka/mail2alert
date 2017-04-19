@@ -3,51 +3,64 @@ from unittest.mock import MagicMock
 
 from mail2alert import gocd
 
-pipeline_groups = [
-    {
-        "pipelines": [
-            {"name": "a-build"},
-            {"name": "a-test"},
-        ],
-        "name": "alpha"
-    },
-    {
-        "pipelines": [
-            {"name": "b-build"},
-            {"name": "b-test"},
-        ],
-        "name": "beta"
-    },
-    {
-        "pipelines": [
-            {"name": "a-test-release-x",},
-            {"name": "b-test-release-x",}
-        ],
-        "name": "release"
-    },
-]
-
 
 class GocdPipelinesTests(unittest.TestCase):
+    pipeline_groups = [
+        {
+            "pipelines": [
+                {"name": "a-build"},
+                {"name": "a-test"},
+            ],
+            "name": "alpha"
+        },
+        {
+            "pipelines": [
+                {"name": "b-build"},
+                {"name": "b-test"},
+            ],
+            "name": "beta"
+        },
+        {
+            "pipelines": [
+                {"name": "a-test-release-x"},
+                {"name": "b-test-release-x"}
+            ],
+            "name": "release"
+        },
+    ]
+
     def test_filter_in_group(self):
-        pipelines = gocd.Pipelines(pipeline_groups)
+        pipelines = gocd.Pipelines(self.pipeline_groups)
 
-        filter = pipelines.in_group(group='beta')
+        rule_filter = pipelines.in_group(group='beta')
 
-        self.assertTrue(filter(dict(pipeline='b-build')))
-        self.assertTrue(filter(dict(pipeline='b-test')))
-        self.assertFalse(filter(dict(pipeline='b-test-release-x')))
-        self.assertFalse(filter(dict(pipeline='a-test')))
+        self.assertTrue(rule_filter(dict(pipeline='b-build')))
+        self.assertTrue(rule_filter(dict(pipeline='b-test')))
+        self.assertFalse(rule_filter(dict(pipeline='b-test-release-x')))
+        self.assertFalse(rule_filter(dict(pipeline='a-test')))
 
     def test_filter_name_like_in_group(self):
-        pipelines = gocd.Pipelines(pipeline_groups)
+        pipelines = gocd.Pipelines(self.pipeline_groups)
 
-        filter = pipelines.name_like_in_group(re_pattern=r'(.+)-release.*', group='beta')
+        rule_filter = pipelines.name_like_in_group(
+            re_pattern=r'(.+)-release.*',
+            group='beta'
+        )
 
-        self.assertFalse(filter(dict(pipeline='b-build')))
-        self.assertFalse(filter(dict(pipeline='b-test')))
-        self.assertTrue(filter(dict(pipeline='b-test-release-x')))
-        self.assertFalse(filter(dict(pipeline='a-test')))
+        self.assertFalse(rule_filter(dict(pipeline='b-build')))
+        self.assertFalse(rule_filter(dict(pipeline='b-test')))
+        self.assertTrue(rule_filter(dict(pipeline='b-test-release-x')))
+        self.assertFalse(rule_filter(dict(pipeline='a-test')))
+
+    def test_filter_all(self):
+        pipelines = gocd.Pipelines(self.pipeline_groups)
+
+        rule_filter = pipelines.all()
+
+        self.assertTrue(rule_filter(dict(pipeline='b-build')))
+        self.assertTrue(rule_filter(dict(pipeline='b-test')))
+        self.assertTrue(rule_filter(dict(pipeline='b-test-release-x')))
+        self.assertTrue(rule_filter(dict(pipeline='a-test')))
 
 
 class GocdRuleTests(unittest.TestCase):
@@ -131,7 +144,6 @@ class ManagerTests(unittest.TestCase):
 
         self.assertTrue(wants)
 
-
     def test_wants_not_message_to(self):
         conf = {'message-we-want': {'to': 'not@example.com'}}
         mgr = gocd.Manager(conf)
@@ -139,6 +151,46 @@ class ManagerTests(unittest.TestCase):
         wants = mgr.wants_message('', ['krumelur@example.com'], '')
 
         self.assertFalse(wants)
+
+    def test_test_msgs(self):
+        mgr = gocd.Manager(dict())
+        mgr.pipeline_groups = [
+            {
+                'name': 'g1',
+                'pipelines': [
+                    {'name': 'p11', 'extra': 'removed'},
+                    {'name': 'p12'},
+                ]
+            },
+            {
+                'name': 'g2',
+                'pipelines': [
+                    {'name': 'p21'},
+                ]
+            },
+        ]
+        expected = [
+            dict(event='BREAKS', pipeline='p11'),
+            dict(event='CANCELLED', pipeline='p11'),
+            dict(event='FAILS', pipeline='p11'),
+            dict(event='FIXED', pipeline='p11'),
+            dict(event='PASSES', pipeline='p11'),
+            dict(event='BREAKS', pipeline='p12'),
+            dict(event='CANCELLED', pipeline='p12'),
+            dict(event='FAILS', pipeline='p12'),
+            dict(event='FIXED', pipeline='p12'),
+            dict(event='PASSES', pipeline='p12'),
+            dict(event='BREAKS', pipeline='p21'),
+            dict(event='CANCELLED', pipeline='p21'),
+            dict(event='FAILS', pipeline='p21'),
+            dict(event='FIXED', pipeline='p21'),
+            dict(event='PASSES', pipeline='p21'),
+        ]
+
+        actual = mgr.test_msgs()
+
+        self.maxDiff = 1000
+        self.assertEqual(list(actual), expected)
 
     def test_test(self):
         pipeline_groups = [
@@ -173,27 +225,42 @@ class ManagerTests(unittest.TestCase):
                     'args': ['g2']
                 }
             },
+            {
+                'actions': ['mailto:nosy@example.com'],
+                'filter': {
+                    'events': ['FAILS', 'CANCELLED'],
+                    'function': 'pipelines.all',
+                }
+            },
         ]
-        expectecd = [
+        expected = [
             {
                 'name': 'g1',
                 'pipelines': [
                     {
                         'name': 'p11',
-                        'rules': [
+                        'alerts': [
                             {
                                 'actions': ['mailto:we@example.com'],
                                 'events': ['BREAKS', 'FIXED']
-                            }
+                            },
+                            {
+                                'actions': ['mailto:nosy@example.com'],
+                                'events': ['CANCELLED', 'FAILS']
+                            },
                         ]
                     },
                     {
                         'name': 'p12',
-                        'rules': [
+                        'alerts': [
                             {
                                 'actions': ['mailto:we@example.com'],
                                 'events': ['BREAKS', 'FIXED']
-                            }
+                            },
+                            {
+                                'actions': ['mailto:nosy@example.com'],
+                                'events': ['CANCELLED', 'FAILS']
+                            },
                         ]
                     },
                 ]
@@ -203,11 +270,15 @@ class ManagerTests(unittest.TestCase):
                 'pipelines': [
                     {
                         'name': 'p21',
-                        'rules': [
+                        'alerts': [
+                            {
+                                'actions': ['mailto:nosy@example.com'],
+                                'events': ['CANCELLED', 'FAILS']
+                            },
                             {
                                 'actions': ['mailto:them@example.com'],
                                 'events': ['FAILS']
-                            }
+                            },
                         ]
                     },
                 ]
@@ -218,7 +289,82 @@ class ManagerTests(unittest.TestCase):
 
         actual = mgr.test()
 
-        self.assertEqual(actual, expectecd)
+        self.maxDiff = 10000
+        self.assertEqual(actual, expected)
+
+
+class MessageTests(unittest.TestCase):
+    def test_parse_fixed_pipeline(self):
+        mailtext = (
+            "blah blah blah\n"
+            "Subject: Stage [my-pipeline/232/my-stage/1] is fixed\n"
+            "blah blah blah"
+        )
+
+        msg = gocd.Message(mailtext)
+
+        self.assertEqual('FIXED', msg['event'])
+        self.assertEqual('my-pipeline', msg['pipeline'])
+
+    def test_parse_breaks_pipeline(self):
+        mailtext = (
+            "blah blah blah\n"
+            "Subject: Stage [my-pipeline/232/my-stage/1] is broken\n"
+            "blah blah blah"
+        )
+
+        msg = gocd.Message(mailtext)
+
+        self.assertEqual('BREAKS', msg['event'])
+        self.assertEqual('my-pipeline', msg['pipeline'])
+
+    def test_parse_cancelled_pipeline(self):
+        mailtext = (
+            "blah blah blah\n"
+            "Subject: Stage [my-pipeline/232/my-stage/1] is cancelled\n"
+            "blah blah blah"
+        )
+
+        msg = gocd.Message(mailtext)
+
+        self.assertEqual('CANCELLED', msg['event'])
+        self.assertEqual('my-pipeline', msg['pipeline'])
+
+    def test_parse_passes_pipeline(self):
+        mailtext = (
+            "blah blah blah\n"
+            "Subject: Stage [my-pipeline/232/my-stage/1] passed\n"
+            "blah blah blah"
+        )
+
+        msg = gocd.Message(mailtext)
+
+        self.assertEqual('PASSES', msg['event'])
+        self.assertEqual('my-pipeline', msg['pipeline'])
+
+    def test_parse_fails_pipeline(self):
+        mailtext = (
+            "blah blah blah\n"
+            "Subject: Stage [my-pipeline/232/my-stage/1] failed \n"
+            "blah blah blah"
+        )
+
+        msg = gocd.Message(mailtext)
+
+        self.assertEqual('FAILS', msg['event'])
+        self.assertEqual('my-pipeline', msg['pipeline'])
+
+    def test_parse_unexpected(self):
+        mailtext = (
+            "blah blah blah\n"
+            "Subject: Stage [my-pipeline/232/my-stage/1] other\n"
+            "blah blah blah"
+        )
+
+        msg = gocd.Message(mailtext)
+
+        self.assertEqual(None, msg['event'])
+        self.assertEqual('my-pipeline', msg['pipeline'])
 
 if __name__ == '__main__':
     unittest.main()

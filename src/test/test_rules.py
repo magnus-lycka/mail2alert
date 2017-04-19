@@ -2,11 +2,12 @@ import unittest
 
 import mail2alert.rules
 
+
 class RuleTests(unittest.TestCase):
     def test_make_rule(self):
         owner = 'o'
         name = 'n'
-        filter = {
+        rule_filter = {
             'events': [
                 'FAILS',
                 'BREAKS',
@@ -20,7 +21,7 @@ class RuleTests(unittest.TestCase):
         rule_dict = dict(
             owner=owner,
             name=name,
-            filter=filter,
+            filter=rule_filter,
             actions=actions
         )
 
@@ -28,11 +29,10 @@ class RuleTests(unittest.TestCase):
 
         self.assertEqual(rule.owner, owner)
         self.assertEqual(rule.name, name)
-        self.assertEqual(rule.filter, filter)
+        self.assertEqual(rule.filter, rule_filter)
         self.assertEqual(rule.actions, actions)
 
     def test_make_null_rule(self):
-
         rule = mail2alert.rules.Rule({})
 
         self.assertEqual(rule.owner, '')
