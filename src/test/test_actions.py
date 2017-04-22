@@ -19,3 +19,6 @@ class ActionsTests(unittest.TestCase):
         self.assertEqual(act.mailto, ['a@b.c'])
         actions.logging.error.assert_called_with('Unexpected action: mailtoooooo:d@e.f')
 
+
+if __name__ == '__main__':
+    unittest.main()

@@ -7,136 +7,200 @@ different addresses based on their contents.
 The primary goal is to distribute GoCD alerts to
 group email addresses based on their subject lines.
 
-The secondary goal is to build this functionality
-from loosely coupled, simple and if reasonable, fairly
-generic tools.
+
+## Requirements
+
+This software is written using Pythons asyncio libraries,
+and the new async / await syntax. It's been developed and
+tested with Python 3.6.1.
+
+The easiest way to deploy it is probably in a docker, see
+__Deployment__ section below.
+
 
 ## Operation
 
-The core process is a small SMTP server. Action for received
-emails can be one of:
-  - send
-  - process
+The core process is an SMTP server.
 
-The action can (as it looks right now) be determined from
-the recipient address.
+For each received email, the server will consult all its
+managers. (It's just the gocd manager for now.) The first
+manager who wants the email will get it, so criteria for
+accepting emails should not overlap. For now, the critera
+is a match on either from address or to address.
 
-The SMTP server will have an external SMTP server defined.
-If action is `send`, the email is simply relayed to that
-server.
+Emails which aren't wanted by any manager will be passed
+on to another SMTP server.
 
-If the action is `process`, configuration settings determine
-what to do next. The initial intention is to use the subject
-line of the email to determine 1) whether to forward this
-email, 2) which address to sent it to.
+If a manager wants a message, it's given the recipient
+list, the from address and the message body. It can then
+return the same triplet modified as it sees fit. The
+typical change
 
-Future extensions might include sending the alert to e.g.
-a web service instead of an email address.
 
-## GoCD settings
+## Configuration
 
-First of all, there are two settings which are needed in the
-GoCD server:
-  - In Admin => Server Configuration=> Email Notification,
-    configure hostname and port to send emails to mail2alert.
+The configuration is a file called `configuration.yml`
+located where the server is started. It could look like
+this.
 
-  - For some user, in Preferences => Notifications set email
-    to a value which can be used to identify emails by
-    mail2alert as described below, and set one filter for the
-    user to `[Any Pipeline] [Any Stage] All All`
-    - To Be IInvestigated: Does this user need read permissions on all
-      pipelines groups?
+    ---
+    local-smtp: localhost:1025
+    remote-smtp: localhost:25
+    managers:
+      - name: gocd
+        url: http://localhost:8080/go
+        user: $GOUSERNAME
+        passwd: $GOPASSWORD
+        messages-we-want:
+          to: mail2alert@example.com
+        rules:
+          - actions:
+              - mailto:cat@example.com
+            filter:
+              events:
+                - BREAKS
+              function: pipelines.in_group
+              args:
+                - my-group
+          - actions:
+              - mailto:sys@example.com
+              - mailto:op@example.com
+            filter:
+              function: mail.in_subject
+              args:
+                - server
+                - backup
 
-Our idea is that GoCD pipeline configurations can have a
-parameter whose name starts with `MAIL2ALERT_`. For instance
-`MAIL2ALERT_BREAKS` or `MAIL2ALERT_FIXED_1`. The part after
-the first underscore is one of:
+`local-smtp` defines the hostname:port for the builtin
+SMTP server in _mail2alert_ to listen to.
 
-  - ALL
+`remote-smtp` defines the hostname:port which _mail2alert_
+should send emails to.
+
+`managers` is a list of mail2alert managers. Each list
+item describes the settings for than manager. Some fields
+are manager specific, but the following are generic:
+
+`name` must match the name of the Python module defining
+the manager.
+
+`messages-we-want` contains either the key `to` followed by
+a recipient address we match on, or the key `from` followed
+by a sender address we match on.
+
+`rules` is a section containing a list of rules which the
+manager uses to determine what to do with each email it wanted.
+The following fields for a rule are common for managers:
+
+`actions` is a list of URIs representing what to do with the
+message. `mailto` URIs mean that the process_message method
+should return the email address in the recipient list. Other
+URIs are so-far not supported, but Slack might be next in turn.
+
+`filter` is a manager specific field used by the rules to
+determine whether we want this message.
+
+
+## Managers
+
+Each manager is a module containing a which implements this
+interface
+
+    class Manager:
+        def __init__(self, conf):
+            """
+            Get's the part of the configuration specific to
+            this manager.
+            """
+
+        def wants_message(self, mail_from, rcpt_tos, binary_content):
+            return boolean  # True==we want this email
+
+        def process_message(self, mail_from, rcpt_tos, binary_content):
+            """
+            Use the rules to determine whether we want the message,
+            and how to modify any of the arguments before returning
+            it. Make recipients an empty list if you don't want to
+            send any email.
+            """
+            return mail_from, recipients, binary_content
+
+Mail2alert will replace the `From:` and `To:` fields in the email
+content with the values returned before sending it.
+
+
+## The gocd manager
+
+The gocd manager reads the pipeline group configuration periodically,
+to determine which pipelines there are, and what pipeline groups
+they belong to. For this to work, we need three settings in the
+manager section of the configuration:
+
+`url:` e.g. `https://localhost:8154/go`
+
+`user:` e.g. `$GOUSER`
+
+`passwd:` e.g. `$GOPASS`
+
+Providing the GoCD authentification as environment variables means that
+you can place the configuration file under configuration control without
+putting security sensitive information in it.
+
+The gocd manager extracts the `subject` from each email, and
+from job progress emails, it will extract the `pipeline` name
+and `event` from the subject.
+
+It has the following rule functions:
+ - mail.in_subject
+   - Will match a message if all words given as arguments are
+     found in the subject line. (Case insensitive.)
+ - pipelines.all
+   - all pipelines will match.
+ - pipelines.in_group
+   - Takes a group name as argument. Will match if name of
+     pipeline in message matches is in the pipeline group
+     provided as argument.
+ - pipelines.name_like_in_group
+   - takes two arguments:
+     - a regular expression pattern
+     - a group name
+   - a message will be selected if its pipeline is like
+     a pipeline in the provided group when the regular expression
+     has been applied. E.g. given arguments `(.+)-release.*`
+     and `mygroup`, it will match if message contained pipeline
+     `ppp-release-1.2.3` and a pipline named `ppp` is in `mygroup`.
+
+
+
+The `filter` part of each rule can contain the following fields:
+
+`event` a subset of values listed below. If provided in the rule,
+messages will only be selected if any of the events listed has
+ben identified in the message subject line.
   - PASSES
   - FAILS
   - BREAKS
   - FIXED
   - CANCELLED
-  - NODEFAULT
 
-The value `NODEFAULT` is intended to prevent the default
-behaviour defined below, the other values are explained 
-in the GoCD documentation, here:
-https://docs.gocd.io/current/faq/notifications_page.html
+`function` one of the rule functions listed above.
 
-Pipeline parameters are explained here:
-https://docs.gocd.io/current/configuration/admin_use_parameters_in_configuration.html
+`args` needed for `function` as indicated above.
 
-After this, there might be an optional underscore with an
-arbitrary suffix. The reason for this is to allow more than
-one action to be executed on the same event for the same pipeline.
+### GoCD server settings
 
-The value for a parameter is a mailto-URL, without additional headers.
-See: https://tools.ietf.org/html/rfc2368
+There are two settings which are needed in the GoCD server:
+  - In Admin => Server Configuration=> Email Notification,
+    configure hostname and port to send emails to mail2alert,
+    i.e. matching `local-smtp` in the _mail2alert_ config.
 
-Using other values than mailto-URLs would be a way to extend functionality
-in the future.
-
-## Supporting functions
-
-Since the initial usecase concerns getting sane alerts to
-group emails for GoCD events, we need some support functions.
-
-### mail2alert-gocd-pipelines
-
-This supporting function will periodically scan the GoCD server pipeline 
-settings using the pipeline configuration REST API, ( see
-https://api.gocd.io/current/#pipeline-groups and
-https://api.gocd.io/current/#get-pipeline-config )
-to find the relevant MAIL2ALERT parameters and update the configuration
-of the system based on them.
-
-### mail2alert-gocd-pipelinegroups
-
-This support function will periodically scan the GOCD configuration
-as described above, and add a default `MAIL2ALERT` paramameter for
-all pipelines which have no such parameter. The default is determined
-from a configuration setting for each pipeline group.
-
-## Configuration structure
-
-Configuration for mail2alert might look something along these lines:
-
- - mail2alert
-   - listen-smtp
-   - remote-smtp
-   - admin-email
-   - process
-     - gocd
-       - url
-       - user
-       - password
-       - filter
-       - pipelinegroups
-          - name
-             - event: action
-       - pipelines
-          - filter
-          - name
-             - event
-               - action
-
-The tricky part is that the `pipelines` part will get updated on the fly...
-
-### Toying...
-
-    >>> from smtplib import SMTP
-    >>> from email.message import EmailMessage
-    >>> msg = EmailMessage()
-    >>> msg['From']='xx@xx.com'
-    >>> msg['To']='yy@yy.com'
-    >>> msg['Subject']='Zubject'
-    >>> msg.set_content('Det var en gång...')
-    >>> with SMTP('smtp.xxx.xxx') as smtp:
-    ...     smtp.send_message(msg)
-    ... 
-    {}
-    >>> 
+  - For some user, in Preferences => Notifications set email
+    to a value which `messages-we-want: to:`
+  - Set one filter for the user to `[Any Pipeline] [Any Stage] All All`
+    - To Be Investigated: Does this user need read permissions on all
+      pipelines groups?
 
 
+## Deployment
+
+blah...

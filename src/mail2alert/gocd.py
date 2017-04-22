@@ -1,3 +1,5 @@
+import aiohttp
+import asyncio
 from enum import Enum, auto
 from itertools import product
 import logging
@@ -5,6 +7,19 @@ import re
 
 from mail2alert.rules import Rule
 from .actions import Actions
+
+
+async def fetch(session, url):
+    logging.debug('Fetching url %s' % url)
+    with aiohttp.Timeout(10, loop=session.loop):
+        async with session.get(url) as response:
+            logging.debug(response)
+            return await response.json()
+
+
+#if 0:# __name__ == '__main__':
+#    loop = asyncio.get_event_loop()
+#    loop.run_until_complete(main(loop))
 
 
 class Manager:
@@ -17,28 +32,56 @@ class Manager:
     """
 
     def __init__(self, conf):
+        logging.info('Started {}'.format(self.__class__))
         self.conf = conf
         self.pipeline_groups = []
+        coro = self.fetch_pipeline_groups()
+        asyncio.ensure_future(coro)
+
+    async def fetch_pipeline_groups(self, loop=None):
+        logging.info('Fetching pipeline groups')
+        loop = loop or asyncio.get_event_loop()
+        while True:
+            async with aiohttp.ClientSession(
+                loop=loop,
+                auth=aiohttp.BasicAuth(self.conf['user'], self.conf['passwd'])
+            ) as session:
+                url = self.conf['url'] + '/api/config/pipeline_groups'
+                self.pipeline_groups = await fetch(session, url)
+                logging.info('Set pipeline groups config to {} {}'.format(
+                    type(self.pipeline_groups),
+                    self.pipeline_groups)
+                )
+            await asyncio.sleep(30)
 
     def wants_message(self, mail_from, rcpt_tos, content):
         """
         Determine whether the manager is interested in a certain message.
         """
-        wanted = self.conf['message-we-want']
+        wanted = self.conf['messages-we-want']
         wanted_to = wanted.get('to')
+        wanted_from = wanted.get('from')
+        logging.debug('We vant to: {} or from: {}'.format(wanted_to, wanted_from))
+        logging.debug('We got to: {} and from: {}'.format(rcpt_tos, mail_from))
         if wanted_to:
             return wanted_to in rcpt_tos
-        wanted_from = wanted.get('from')
         if wanted_from:
             return wanted_from == mail_from
 
-    def process(self, mail_from, rcpt_tos, content):
+    def process_message(self, mail_from, rcpt_tos, binary_content):
+        logging.debug('process_message("{}", {}, {})'.format(mail_from, rcpt_tos, binary_content))
         recipients = []
-        msg = Message(content)
+        msg = Message(binary_content)
+        logging.debug('Extracted message %s' % msg)
         for rule in get_rules(self.conf['rules']):
-            actions = Actions(rule.check(msg, {'pipelines': Pipelines(self.pipeline_groups)}))
+            logging.debug('Check %s' % rule)
+            rule_funcs = {
+                'pipelines': Pipelines(self.pipeline_groups),
+                'mail': Mail(),
+            }
+            actions = Actions(rule.check(msg, rule_funcs))
             recipients.extend(actions.mailto)
-        return mail_from, recipients, content
+        return mail_from, recipients, binary_content
 
     def test(self):
         """
@@ -67,7 +110,7 @@ class Manager:
         pipelines = []
         for grp in self.pipeline_groups:
             pipelines.extend([p['name'] for p in grp['pipelines']])
-        return (dict(pipeline=p, event=e) for p, e in product(pipelines, Event.names()))
+        return (dict(pipeline=p, event=e) for p, e in product(pipelines, Event))
 
     @staticmethod
     def add_alert_to_report(msg, rule, pipeline_map):
@@ -80,8 +123,8 @@ class Manager:
         else:
             alert = dict(actions=rule.actions, events=[])
             alerts.append(alert)
-        if msg['event'] not in alert['events']:
-            alert['events'].append(msg['event'])
+        if msg['event'].name not in alert['events']:
+            alert['events'].append(msg['event'].name)
 
 
 class GocdRule(Rule):
@@ -89,11 +132,19 @@ class GocdRule(Rule):
         """
         Extract which pipeline and which event from the msg, and test with the filter
         """
-        if not msg['event'] in self.filter['events']:
-            return []
+        if 'events' in self.filter:
+            if not msg['event'] or not msg['event'].name in self.filter['events']:
+                logging.debug('No match for %s' % msg['event'])
+                return []
+            else:
+                logging.debug('Match for %s' % msg['event'])
+        else:
+            logging.debug('No event in rule.')
         key, method = self.filter['function'].split('.')
         rule_filter = getattr(functions[key], method)(*tuple(self.filter.get('args', ())))
+        logging.debug('Filter %s' % rule_filter)
         if rule_filter(msg):
+            logging.debug('Rule match, actions: %s' % self.actions)
             return self.actions
         return []
 
@@ -118,19 +169,24 @@ class Event(Enum):
 class Message(dict):
     def __init__(self, content):
         event_map = {
-            'is fixed': Event.FIXED.name,
-            'is broken': Event.BREAKS.name,
-            'is cancelled': Event.CANCELLED.name,
-            'passed': Event.PASSES.name,
-            'failed': Event.FAILS.name,
+            'is fixed': Event.FIXED,
+            'is broken': Event.BREAKS,
+            'is cancelled': Event.CANCELLED,
+            'passed': Event.PASSES,
+            'failed': Event.FAILS,
         }
         super().__init__()
-        pattern = re.compile(r'Subject: Stage \[([^/]+)/[^/]+/[^/]+/[^/]+\] (.+)$', re.M)
-        mo = pattern.search(content)
+        subject_pattern = re.compile(r'Subject:(.+)$', re.M)
+        mo = subject_pattern.search(content.decode())
+        self['subject'] = mo.group(1).strip()
+        pattern = re.compile(r'Stage \[([^/]+)/[^/]+/[^/]+/[^/]+\] (.+)$')
+        mo = pattern.search(self['subject'])
         if mo:
             event = event_map.get(mo.group(2).strip())
             if not event:
                 logging.warning('Unexpected event "%s" in %r' % (mo.group(2), content))
+            else:
+                logging.debug('Got %s' % event)
             self['pipeline'] = mo.group(1)
             self['event'] = event
         else:
@@ -177,3 +233,11 @@ class Pipelines:
             return False
 
         return name_like_in_group_filter
+
+
+class Mail:
+    def in_subject(self, *words):
+        def words_in_subject(msg):
+            return all(word.lower() in msg['subject'].lower() for word in words)
+
+        return words_in_subject

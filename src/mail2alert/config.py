@@ -1,3 +1,4 @@
+import logging
 import yaml
 from os.path import expandvars
 """
@@ -9,10 +10,13 @@ variables in all values.
 class Configuration(dict):
     def __init__(self):
         super().__init__()
-        data = yaml.load(open('configuration.yml'))
-        expand_vars(data)
-        for key, value in data.items():
-            self[key] = value
+        with open('configuration.yml') as conf_file:
+            data = yaml.load(conf_file)
+            expand_vars(data)
+            for key, value in data.items():
+                self[key] = value
+            logging.debug('read configuration from {}'.format(conf_file.name))
+            logging.debug('got configuration {}'.format(self))
 
 
 def expand_vars(structure):

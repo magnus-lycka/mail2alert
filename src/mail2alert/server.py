@@ -2,7 +2,9 @@
 import asyncio
 import aiomonitor
 from aiosmtpd.controller import Controller
-from aiosmtpd.handlers import Proxy
+from aiosmtpd.handlers import Proxy, CRLF, NLCRE
+from email import message_from_bytes
+from email.policy import EmailPolicy
 import logging
 
 from .config import Configuration
@@ -21,11 +23,13 @@ with other mechanisms than email.
 """
 
 
-async def hearbeat(seconds_to_sleep=1):
-    while 1:
-        logging.debug('sleeping for: {0} seconds'.format(seconds_to_sleep))
-        await asyncio.sleep(seconds_to_sleep)
-        seconds_to_sleep *= 2
+def update_mail_to_from(bytes_data, rcpttos, mailfrom):
+    msg = message_from_bytes(bytes_data, policy=EmailPolicy())
+    del msg['To']
+    msg['To'] = rcpttos
+    del msg['From']
+    msg['From'] = mailfrom
+    return msg.as_bytes()
 
 
 class Mail2AlertProxy(Proxy):
@@ -33,12 +37,33 @@ class Mail2AlertProxy(Proxy):
         self.mail2alert_managers = managers
         super().__init__(host, port)
 
+    async def handle_DATA(self, server, session, envelope):
+        """
+        The Proxy class had confused strings and bytes!
+        """
+        lines = envelope.content.splitlines(keepends=True)
+        # Look for the last header
+        i = 0
+        ending = CRLF
+        for line in lines:  # pragma: nobranch
+            if NLCRE.match(line.decode('ascii')):
+                ending = line
+                break
+            i += 1
+        lines.insert(i, b'X-Peer: %s%s' % (session.peer[0].encode('ascii'), ending))
+        data = b''.join(lines)
+        refused = self._deliver(envelope.mail_from, envelope.rcpt_tos, data)
+        if refused:
+            logging.info('we got some refusals: %s', refused)
+        return '250 OK'
+
     def _deliver(self, mailfrom, rcpttos, data):
         for manager in self.mail2alert_managers:
             if manager.wants_message(mailfrom, rcpttos, data):
                 mailfrom, rcpttos, data = manager.process_message(mailfrom, rcpttos, data)
                 break
         if rcpttos:
+            data = update_mail_to_from(data, rcpttos, mailfrom)
             return super()._deliver(mailfrom, rcpttos, data)
 
 
@@ -62,11 +87,10 @@ async def proxy_mail(loop):
     cont.start()
 
 
-def main():
-    logging.basicConfig(level=logging.DEBUG)
+def main(loglevel=logging.DEBUG):
+    logging.basicConfig(level=loglevel)
     loop = asyncio.get_event_loop()
     loop.create_task(proxy_mail(loop=loop))
-    loop.create_task(hearbeat())
     try:
         with aiomonitor.start_monitor(loop=loop):
             logging.info("Now you can connect with: nc localhost 50101")

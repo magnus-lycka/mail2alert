@@ -1,5 +1,4 @@
 import unittest
-from unittest.mock import MagicMock
 
 from mail2alert import gocd
 
@@ -65,7 +64,7 @@ class GocdPipelinesTests(unittest.TestCase):
 
 class GocdRuleTests(unittest.TestCase):
     def test_check_ok(self):
-        msg = dict(event='BREAKS', pipeline='p1')
+        msg = dict(event=gocd.Event.BREAKS, pipeline='p1')
         conf = dict(
             filter=dict(
                 events=['FAILS', 'BREAKS'],
@@ -83,7 +82,7 @@ class GocdRuleTests(unittest.TestCase):
         self.assertEqual(rcpts, conf['actions'])
 
     def test_check_wrong_event(self):
-        msg = dict(event='CANCELLED', pipeline='p1')
+        msg = dict(event=gocd.Event.CANCELLED, pipeline='p1')
         conf = dict(
             filter=dict(
                 events=['FAILS', 'BREAKS'],
@@ -101,7 +100,7 @@ class GocdRuleTests(unittest.TestCase):
         self.assertEqual(rcpts, [])
 
     def test_check_wrong_pipeline(self):
-        msg = MagicMock(event='BREAKS', pipeline='p2')
+        msg = dict(event=gocd.Event.BREAKS, pipeline='p2')
         conf = dict(
             filter=dict(
                 events=['FAILS', 'BREAKS'],
@@ -118,10 +117,45 @@ class GocdRuleTests(unittest.TestCase):
 
         self.assertEqual(rcpts, [])
 
+    def test_check_no_event(self):
+        msg = dict(event=None, pipeline='p2')
+        conf = dict(
+            filter=dict(
+                events=['FAILS', 'BREAKS'],
+                function='pipelines.in_group',
+                args=['g1']
+            ),
+            actions=['mailto:a@b.c']
+        )
+        pipelines = gocd.Pipelines([{'name': 'g1',
+                                     'pipelines': [{'name': 'p1'}]}])
+        rule = gocd.GocdRule(conf)
+
+        rcpts = rule.check(msg, dict(pipelines=pipelines))
+
+        self.assertEqual(rcpts, [])
+
+    def test_check_no_event_in_rule(self):
+        msg = dict(event=gocd.Event.BREAKS, pipeline='p1')
+        conf = dict(
+            filter=dict(
+                function='pipelines.in_group',
+                args=['g1']
+            ),
+            actions=['mailto:a@b.c']
+        )
+        pipelines = gocd.Pipelines([{'name': 'g1',
+                                     'pipelines': [{'name': 'p1'}]}])
+        rule = gocd.GocdRule(conf)
+
+        rcpts = rule.check(msg, dict(pipelines=pipelines))
+
+        self.assertEqual(rcpts, conf['actions'])
+
 
 class ManagerTests(unittest.TestCase):
     def test_wants_message_from(self):
-        conf = {'message-we-want': {'from': 'krumelur@example.com'}}
+        conf = {'messages-we-want': {'from': 'krumelur@example.com'}}
         mgr = gocd.Manager(conf)
 
         wants = mgr.wants_message('krumelur@example.com', [], '')
@@ -129,7 +163,7 @@ class ManagerTests(unittest.TestCase):
         self.assertTrue(wants)
 
     def test_wants_not_message_from(self):
-        conf = {'message-we-want': {'from': 'krumelur@example.com'}}
+        conf = {'messages-we-want': {'from': 'krumelur@example.com'}}
         mgr = gocd.Manager(conf)
 
         wants = mgr.wants_message('easterbunny@example.com', [], '')
@@ -137,7 +171,7 @@ class ManagerTests(unittest.TestCase):
         self.assertFalse(wants)
 
     def test_wants_message_to(self):
-        conf = {'message-we-want': {'to': 'krumelur@example.com'}}
+        conf = {'messages-we-want': {'to': 'krumelur@example.com'}}
         mgr = gocd.Manager(conf)
 
         wants = mgr.wants_message('', ['krumelur@example.com'], '')
@@ -145,7 +179,7 @@ class ManagerTests(unittest.TestCase):
         self.assertTrue(wants)
 
     def test_wants_not_message_to(self):
-        conf = {'message-we-want': {'to': 'not@example.com'}}
+        conf = {'messages-we-want': {'to': 'not@example.com'}}
         mgr = gocd.Manager(conf)
 
         wants = mgr.wants_message('', ['krumelur@example.com'], '')
@@ -170,21 +204,21 @@ class ManagerTests(unittest.TestCase):
             },
         ]
         expected = [
-            dict(event='BREAKS', pipeline='p11'),
-            dict(event='CANCELLED', pipeline='p11'),
-            dict(event='FAILS', pipeline='p11'),
-            dict(event='FIXED', pipeline='p11'),
-            dict(event='PASSES', pipeline='p11'),
-            dict(event='BREAKS', pipeline='p12'),
-            dict(event='CANCELLED', pipeline='p12'),
-            dict(event='FAILS', pipeline='p12'),
-            dict(event='FIXED', pipeline='p12'),
-            dict(event='PASSES', pipeline='p12'),
-            dict(event='BREAKS', pipeline='p21'),
-            dict(event='CANCELLED', pipeline='p21'),
-            dict(event='FAILS', pipeline='p21'),
-            dict(event='FIXED', pipeline='p21'),
-            dict(event='PASSES', pipeline='p21'),
+            dict(event=gocd.Event.BREAKS, pipeline='p11'),
+            dict(event=gocd.Event.CANCELLED, pipeline='p11'),
+            dict(event=gocd.Event.FAILS, pipeline='p11'),
+            dict(event=gocd.Event.FIXED, pipeline='p11'),
+            dict(event=gocd.Event.PASSES, pipeline='p11'),
+            dict(event=gocd.Event.BREAKS, pipeline='p12'),
+            dict(event=gocd.Event.CANCELLED, pipeline='p12'),
+            dict(event=gocd.Event.FAILS, pipeline='p12'),
+            dict(event=gocd.Event.FIXED, pipeline='p12'),
+            dict(event=gocd.Event.PASSES, pipeline='p12'),
+            dict(event=gocd.Event.BREAKS, pipeline='p21'),
+            dict(event=gocd.Event.CANCELLED, pipeline='p21'),
+            dict(event=gocd.Event.FAILS, pipeline='p21'),
+            dict(event=gocd.Event.FIXED, pipeline='p21'),
+            dict(event=gocd.Event.PASSES, pipeline='p21'),
         ]
 
         actual = mgr.test_msgs()
@@ -301,9 +335,9 @@ class MessageTests(unittest.TestCase):
             "blah blah blah"
         )
 
-        msg = gocd.Message(mailtext)
+        msg = gocd.Message(mailtext.encode())
 
-        self.assertEqual('FIXED', msg['event'])
+        self.assertEqual(gocd.Event.FIXED, msg['event'])
         self.assertEqual('my-pipeline', msg['pipeline'])
 
     def test_parse_breaks_pipeline(self):
@@ -313,9 +347,9 @@ class MessageTests(unittest.TestCase):
             "blah blah blah"
         )
 
-        msg = gocd.Message(mailtext)
+        msg = gocd.Message(mailtext.encode())
 
-        self.assertEqual('BREAKS', msg['event'])
+        self.assertEqual(gocd.Event.BREAKS, msg['event'])
         self.assertEqual('my-pipeline', msg['pipeline'])
 
     def test_parse_cancelled_pipeline(self):
@@ -325,9 +359,9 @@ class MessageTests(unittest.TestCase):
             "blah blah blah"
         )
 
-        msg = gocd.Message(mailtext)
+        msg = gocd.Message(mailtext.encode())
 
-        self.assertEqual('CANCELLED', msg['event'])
+        self.assertEqual(gocd.Event.CANCELLED, msg['event'])
         self.assertEqual('my-pipeline', msg['pipeline'])
 
     def test_parse_passes_pipeline(self):
@@ -337,9 +371,9 @@ class MessageTests(unittest.TestCase):
             "blah blah blah"
         )
 
-        msg = gocd.Message(mailtext)
+        msg = gocd.Message(mailtext.encode())
 
-        self.assertEqual('PASSES', msg['event'])
+        self.assertEqual(gocd.Event.PASSES, msg['event'])
         self.assertEqual('my-pipeline', msg['pipeline'])
 
     def test_parse_fails_pipeline(self):
@@ -349,9 +383,9 @@ class MessageTests(unittest.TestCase):
             "blah blah blah"
         )
 
-        msg = gocd.Message(mailtext)
+        msg = gocd.Message(mailtext.encode())
 
-        self.assertEqual('FAILS', msg['event'])
+        self.assertEqual(gocd.Event.FAILS, msg['event'])
         self.assertEqual('my-pipeline', msg['pipeline'])
 
     def test_parse_unexpected(self):
@@ -361,7 +395,7 @@ class MessageTests(unittest.TestCase):
             "blah blah blah"
         )
 
-        msg = gocd.Message(mailtext)
+        msg = gocd.Message(mailtext.encode())
 
         self.assertEqual(None, msg['event'])
         self.assertEqual('my-pipeline', msg['pipeline'])

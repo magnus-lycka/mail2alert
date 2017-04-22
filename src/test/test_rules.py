@@ -39,3 +39,7 @@ class RuleTests(unittest.TestCase):
         self.assertEqual(rule.name, '')
         self.assertEqual(rule.filter, {})
         self.assertEqual(rule.actions, [])
+
+
+if __name__ == '__main__':
+    unittest.main()
