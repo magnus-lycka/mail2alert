@@ -89,11 +89,8 @@ ENV/
 # Rope project settings
 .ropeproject
 
-# site specific config in test
-src/test/configuration.yml
-
 # Jetbrains
 .idea
 
 # local config for manual tests
-configuration.yml
+/configuration.yml

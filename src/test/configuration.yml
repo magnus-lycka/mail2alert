@@ -1,0 +1,31 @@
+---
+local-smtp: localhost:1025
+remote-smtp: localhost:8025
+managers:
+  - name: gocd
+    url: http://localhost:8080/go
+    user: olle
+    passwd: pelle
+    messages-we-want:
+      to: mail2alert@example.com
+    rules:
+      - actions:
+          - mailto:cat@example.com
+        filter:
+          events:
+            - BREAKS
+          function: pipelines.in_group
+          args:
+            - my-group
+  - name: mail
+    messages-we-want:
+      from: go@example.com
+    rules:
+      - actions:
+          - mailto:sys@example.com
+          - mailto:op@example.com
+        filter:
+          function: mail.in_subject
+          args:
+            - server
+            - backup
