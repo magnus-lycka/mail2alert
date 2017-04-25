@@ -65,8 +65,6 @@ class Manager:
                     return
                 base_url = self.conf['url']
                 url = base_url + '/api/config/pipeline_groups'
-                logging.error('URL %s', url)
-                logging.error('Session %s', session)
                 self.pipeline_groups = await fetch(session, url)
                 logging.debug('Set pipeline groups config to {}'.format(
                     self.pipeline_groups)
