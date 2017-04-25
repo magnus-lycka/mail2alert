@@ -1,5 +1,6 @@
 import logging
 import yaml
+from os import environ
 from os.path import expandvars
 """
 Read configuration from YAML file and expand environment
@@ -9,8 +10,9 @@ variables in all values.
 
 class Configuration(dict):
     def __init__(self):
+        config_path = environ.get('MAIL2ALERT_CONFIGURATION') or 'configuration.yml'
         super().__init__()
-        with open('configuration.yml') as conf_file:
+        with open(config_path) as conf_file:
             data = yaml.load(conf_file)
             expand_vars(data)
             for key, value in data.items():

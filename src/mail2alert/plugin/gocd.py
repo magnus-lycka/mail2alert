@@ -1,25 +1,25 @@
-import aiohttp
 import asyncio
-from enum import Enum, auto
-from itertools import product
 import logging
 import re
+from enum import Enum, auto
+from itertools import product
 
-from mail2alert.rules import Rule
-from .actions import Actions
+import aiohttp
+
+from mail2alert.plugin import mail
+from ..actions import Actions
+from ..rules import Rule
 
 
 async def fetch(session, url):
     logging.debug('Fetching url %s' % url)
     with aiohttp.Timeout(10, loop=session.loop):
         async with session.get(url) as response:
-            logging.debug(response)
-            return await response.json()
-
-
-#if 0:# __name__ == '__main__':
-#    loop = asyncio.get_event_loop()
-#    loop.run_until_complete(main(loop))
+            if response.status == 200:
+                logging.debug(response)
+                return await response.json()
+            else:
+                logging.error(response)
 
 
 class Manager:
@@ -38,15 +38,35 @@ class Manager:
         coro = self.fetch_pipeline_groups()
         asyncio.ensure_future(coro)
 
+    @property
+    def rule_funcs(self):
+         return {'pipelines': Pipelines(self.pipeline_groups)}
+
+    def rules(self, rule_list):
+        for rule in rule_list:
+            yield GocdRule(rule)
+
     async def fetch_pipeline_groups(self, loop=None):
         logging.info('Fetching pipeline groups')
         loop = loop or asyncio.get_event_loop()
         while True:
+            if 'user' in self.conf:
+                auth = aiohttp.BasicAuth(self.conf['user'], self.conf['passwd'])
+            else:
+                auth = None
+                logging.warning('Missing user in configuration')
             async with aiohttp.ClientSession(
                 loop=loop,
-                auth=aiohttp.BasicAuth(self.conf['user'], self.conf['passwd'])
+                auth=auth
             ) as session:
-                url = self.conf['url'] + '/api/config/pipeline_groups'
+                if not 'url' in self.conf:
+                    logging.error("No URL in config, can't fetch pipeline groups")
+                    logging.error(self.conf)
+                    return
+                base_url = self.conf['url']
+                url = base_url + '/api/config/pipeline_groups'
+                logging.error('URL %s', url)
+                logging.error('Session %s', session)
                 self.pipeline_groups = await fetch(session, url)
                 logging.info('Set pipeline groups config to {} {}'.format(
                     type(self.pipeline_groups),
@@ -73,11 +93,10 @@ class Manager:
         recipients = []
         msg = Message(binary_content)
         logging.debug('Extracted message %s' % msg)
-        for rule in get_rules(self.conf['rules']):
+        for rule in self.rules(self.conf['rules']):
             logging.debug('Check %s' % rule)
             rule_funcs = {
                 'pipelines': Pipelines(self.pipeline_groups),
-                'mail': Mail(),
             }
             actions = Actions(rule.check(msg, rule_funcs))
             recipients.extend(actions.mailto)
@@ -100,9 +119,9 @@ class Manager:
                 pipeline_map[pipeline_report['name']] = pipeline_report
 
         for msg in self.test_msgs():
-            for rule in get_rules(self.conf['rules']):
+            for rule in self.rules(self.conf['rules']):
                 if rule.check(msg, {'pipelines': Pipelines(self.pipeline_groups)}):
-                    logging.debug('msg', msg, 'checks for rule', rule)
+                    logging.debug('msg %s checks for rule %s' % (msg, rule))
                     self.add_alert_to_report(msg, rule, pipeline_map)
         return report
 
@@ -133,13 +152,16 @@ class GocdRule(Rule):
         Extract which pipeline and which event from the msg, and test with the filter
         """
         if 'events' in self.filter:
+            if not msg['event']:
+                logging.warning('No event found in %s' % msg)
+                return []
             if not msg['event'] or not msg['event'].name in self.filter['events']:
                 logging.debug('No match for %s' % msg['event'])
                 return []
             else:
                 logging.debug('Match for %s' % msg['event'])
         else:
-            logging.debug('No event in rule.')
+            logging.warning('No event in rule %s.' % self.filter)
         key, method = self.filter['function'].split('.')
         rule_filter = getattr(functions[key], method)(*tuple(self.filter.get('args', ())))
         logging.debug('Filter %s' % rule_filter)
@@ -147,11 +169,6 @@ class GocdRule(Rule):
             logging.debug('Rule match, actions: %s' % self.actions)
             return self.actions
         return []
-
-
-def get_rules(rule_list):
-    for rule in rule_list:
-        yield GocdRule(rule)
 
 
 class Event(Enum):
@@ -166,8 +183,9 @@ class Event(Enum):
         return list(cls.__members__.keys())
 
 
-class Message(dict):
+class Message(mail.Message):
     def __init__(self, content):
+        super().__init__(content)
         event_map = {
             'is fixed': Event.FIXED,
             'is broken': Event.BREAKS,
@@ -175,10 +193,6 @@ class Message(dict):
             'passed': Event.PASSES,
             'failed': Event.FAILS,
         }
-        super().__init__()
-        subject_pattern = re.compile(r'Subject:(.+)$', re.M)
-        mo = subject_pattern.search(content.decode())
-        self['subject'] = mo.group(1).strip()
         pattern = re.compile(r'Stage \[([^/]+)/[^/]+/[^/]+/[^/]+\] (.+)$')
         mo = pattern.search(self['subject'])
         if mo:
@@ -235,9 +249,3 @@ class Pipelines:
         return name_like_in_group_filter
 
 
-class Mail:
-    def in_subject(self, *words):
-        def words_in_subject(msg):
-            return all(word.lower() in msg['subject'].lower() for word in words)
-
-        return words_in_subject

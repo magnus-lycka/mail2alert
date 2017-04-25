@@ -64,7 +64,7 @@ class ServerIntegrationTests(unittest.TestCase):
             args=(logging.WARNING,)
         )
         cls.server_under_test.start()
-        sleep(0.01)
+        sleep(0.03)
 
     def setUp(self):
         self.data = StringIO()
@@ -119,7 +119,7 @@ class ServerIntegrationTests(unittest.TestCase):
                 msg = EmailMessage()
                 msg['Subject'] = subject
                 msg['From'] = Address('Go Eller', 'go', 'example.com')
-                msg['To'] = [Address('Mail2Alert', 'mail2alert', 'example.com')]
+                msg['To'] = [Address('admin', 'admin', 'example.com')]
                 msg.set_content('test åäö')
                 client.send_message(msg)
 
@@ -138,6 +138,7 @@ class ServerIntegrationTests(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cls.server_under_test.terminate()
+
         loop = asyncio.get_event_loop()
 
         server_closures = []

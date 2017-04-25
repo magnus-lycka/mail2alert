@@ -44,6 +44,7 @@ nosetests.xml
 coverage.xml
 *,cover
 .hypothesis/
+src/test/cover
 
 # Translations
 *.mo
@@ -93,3 +94,6 @@ src/test/configuration.yml
 
 # Jetbrains
 .idea
+
+# local config for manual tests
+configuration.yml

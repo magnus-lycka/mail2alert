@@ -40,6 +40,41 @@ class RuleTests(unittest.TestCase):
         self.assertEqual(rule.filter, {})
         self.assertEqual(rule.actions, [])
 
+    def test_basic_check_ok(self):
+        msg = {'subject': 'nuff'}
+        functions = {
+            'rule_tests': self
+        }
+        actions = ['mailto:a@b.c']
+        rule = mail2alert.rules.Rule(
+            dict(
+                filter=dict(function='rule_tests.helper_for_test_basic_check'),
+                actions=actions
+            )
+        )
+
+        self.assertEqual(['mailto:a@b.c'], rule.check(msg, functions))
+
+    def test_basic_check_fail(self):
+        msg = {'subject': 'niff'}
+        functions = {
+            'rule_tests': self
+        }
+        actions = ['mailto:a@b.c']
+        rule = mail2alert.rules.Rule(
+            dict(
+                filter=dict(function='rule_tests.helper_for_test_basic_check'),
+                actions=actions
+            )
+        )
+
+        self.assertEqual([], rule.check(msg, functions))
+
+    def helper_for_test_basic_check(self, *args):
+        def f(msg):
+            return msg['subject'] == 'nuff'
+
+        return f
 
 if __name__ == '__main__':
     unittest.main()

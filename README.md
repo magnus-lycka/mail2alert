@@ -15,7 +15,7 @@ and the new async / await syntax. It's been developed and
 tested with Python 3.6.1.
 
 The easiest way to deploy it is probably in a docker, see
-__Deployment__ section below.
+__Deploy and Run__ section below.
 
 
 ## Operation
@@ -23,10 +23,11 @@ __Deployment__ section below.
 The core process is an SMTP server.
 
 For each received email, the server will consult all its
-managers. (It's just the gocd manager for now.) The first
-manager who wants the email will get it, so criteria for
-accepting emails should not overlap. For now, the critera
-is a match on either from address or to address.
+managers. (It's just the mail & gocd managers for now.)
+The first manager who wants the email will get it, so
+criteria for accepting emails should not overlap. For
+now, the critera is a match on either from address or
+to address.
 
 Emails which aren't wanted by any manager will be passed
 on to another SMTP server.
@@ -34,23 +35,24 @@ on to another SMTP server.
 If a manager wants a message, it's given the recipient
 list, the from address and the message body. It can then
 return the same triplet modified as it sees fit. The
-typical change
+typical change is to replace the recipient with one determined
+from settings and rules in the manager.
 
 
 ## Configuration
 
-The configuration is a file called `configuration.yml`
-located where the server is started. It could look like
-this.
+The configuration is in a file called `configuration.yml`
+located in the directory where the server is started.
+It could look like this.
 
     ---
     local-smtp: localhost:1025
-    remote-smtp: localhost:25
+    remote-smtp: localhost:8025
     managers:
       - name: gocd
         url: http://localhost:8080/go
-        user: $GOUSERNAME
-        passwd: $GOPASSWORD
+        user: olle
+        passwd: pelle
         messages-we-want:
           to: mail2alert@example.com
         rules:
@@ -63,6 +65,20 @@ this.
               args:
                 - my-group
           - actions:
+              - mailto:cat@example.com
+            filter:
+              events:
+                - BREAKS
+                - FIXED
+              function: pipelines.name_like_in_group
+              args:
+                - (.+)-release.*
+                - my-group
+      - name: mail
+        messages-we-want:
+          from: go@example.com
+        rules:
+          - actions:
               - mailto:sys@example.com
               - mailto:op@example.com
             filter:
@@ -70,6 +86,11 @@ this.
               args:
                 - server
                 - backup
+
+In this case, the ordering of managers is deliberate.
+The `messages-we-want` clause of `mail` means that the
+`mail` manager would have eaten the messages intended
+for the `gocd` manager.
 
 `local-smtp` defines the hostname:port for the builtin
 SMTP server in _mail2alert_ to listen to.
@@ -129,6 +150,23 @@ Mail2alert will replace the `From:` and `To:` fields in the email
 content with the values returned before sending it.
 
 
+## The mail manager
+
+The mail manager is for rules which can be determined without
+consulting anything beyond the email content.
+
+It has the following rule function:
+ - mail.in_subject
+   - Will match a message if all words given as arguments are
+     found in the subject line. (Case insensitive.)
+
+The `filter` part of each rule can contain the following fields:
+
+`function` the rule function listed above.
+
+`args` needed for `function` as indicated above.
+
+
 ## The gocd manager
 
 The gocd manager reads the pipeline group configuration periodically,
@@ -151,9 +189,6 @@ from job progress emails, it will extract the `pipeline` name
 and `event` from the subject.
 
 It has the following rule functions:
- - mail.in_subject
-   - Will match a message if all words given as arguments are
-     found in the subject line. (Case insensitive.)
  - pipelines.all
    - all pipelines will match.
  - pipelines.in_group
@@ -169,8 +204,6 @@ It has the following rule functions:
      has been applied. E.g. given arguments `(.+)-release.*`
      and `mygroup`, it will match if message contained pipeline
      `ppp-release-1.2.3` and a pipline named `ppp` is in `mygroup`.
-
-
 
 The `filter` part of each rule can contain the following fields:
 
@@ -201,6 +234,19 @@ There are two settings which are needed in the GoCD server:
       pipelines groups?
 
 
-## Deployment
+## Deploy and Run
 
-blah...
+The `build.sh` script builds a new docker image from the `Dockerfile`
+
+The `run.sh` script runs the docker image. Note that it's set to
+run the docker image in the insecure `--network=host` mode, which
+is considered insecure. One argument is needed, to provide the
+path to the directory where the valid `configuration.yml` is located.
+This directory will be read-only-mounted by the docker.
+
+`nc localhost 50101` provides you with an interactive
+monitor to the application for debugging. See
+http://aiomonitor.readthedocs.io/en/latest/
+
+Use `docker restart mail2alert-app` after changing
+`configuration.yml` to reread it.

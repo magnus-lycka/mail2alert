@@ -1,6 +1,4 @@
 aiohttp
 aiomonitor
-aioredis
 aiosmtpd
-hiredis
 pyyaml

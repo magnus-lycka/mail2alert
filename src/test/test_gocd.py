@@ -1,6 +1,6 @@
 import unittest
 
-from mail2alert import gocd
+from mail2alert.plugin import gocd
 
 
 class GocdPipelinesTests(unittest.TestCase):
