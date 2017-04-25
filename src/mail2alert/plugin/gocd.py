@@ -68,8 +68,7 @@ class Manager:
                 logging.error('URL %s', url)
                 logging.error('Session %s', session)
                 self.pipeline_groups = await fetch(session, url)
-                logging.info('Set pipeline groups config to {} {}'.format(
-                    type(self.pipeline_groups),
+                logging.debug('Set pipeline groups config to {}'.format(
                     self.pipeline_groups)
                 )
             await asyncio.sleep(30)

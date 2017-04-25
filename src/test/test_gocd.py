@@ -1,4 +1,5 @@
 import unittest
+from email.message import EmailMessage
 
 from mail2alert.plugin import gocd
 
@@ -329,73 +330,63 @@ class ManagerTests(unittest.TestCase):
 
 class MessageTests(unittest.TestCase):
     def test_parse_fixed_pipeline(self):
-        mailtext = (
-            "blah blah blah\n"
-            "Subject: Stage [my-pipeline/232/my-stage/1] is fixed\n"
-            "blah blah blah"
-        )
+        mail = EmailMessage()
+        mail['Subject'] = 'Stage [my-pipeline/232/my-stage/1] is fixed'
 
-        msg = gocd.Message(mailtext.encode())
+        msg = gocd.Message(mail.as_bytes())
 
         self.assertEqual(gocd.Event.FIXED, msg['event'])
         self.assertEqual('my-pipeline', msg['pipeline'])
 
     def test_parse_breaks_pipeline(self):
-        mailtext = (
-            "blah blah blah\n"
-            "Subject: Stage [my-pipeline/232/my-stage/1] is broken\n"
-            "blah blah blah"
-        )
+        mail = EmailMessage()
+        mail['Subject'] = 'Stage [my-pipeline/232/my-stage/1] is broken'
 
-        msg = gocd.Message(mailtext.encode())
+        msg = gocd.Message(mail.as_bytes())
 
         self.assertEqual(gocd.Event.BREAKS, msg['event'])
         self.assertEqual('my-pipeline', msg['pipeline'])
 
     def test_parse_cancelled_pipeline(self):
-        mailtext = (
-            "blah blah blah\n"
-            "Subject: Stage [my-pipeline/232/my-stage/1] is cancelled\n"
-            "blah blah blah"
-        )
+        mail = EmailMessage()
+        mail['Subject'] = 'Stage [my-pipeline/232/my-stage/1] is cancelled'
 
-        msg = gocd.Message(mailtext.encode())
+        msg = gocd.Message(mail.as_bytes())
 
         self.assertEqual(gocd.Event.CANCELLED, msg['event'])
         self.assertEqual('my-pipeline', msg['pipeline'])
 
     def test_parse_passes_pipeline(self):
-        mailtext = (
-            "blah blah blah\n"
-            "Subject: Stage [my-pipeline/232/my-stage/1] passed\n"
-            "blah blah blah"
-        )
+        mail = EmailMessage()
+        mail['Subject'] = 'Stage [my-pipeline/232/my-stage/1] passed'
 
-        msg = gocd.Message(mailtext.encode())
+        msg = gocd.Message(mail.as_bytes())
 
         self.assertEqual(gocd.Event.PASSES, msg['event'])
         self.assertEqual('my-pipeline', msg['pipeline'])
 
     def test_parse_fails_pipeline(self):
-        mailtext = (
-            "blah blah blah\n"
-            "Subject: Stage [my-pipeline/232/my-stage/1] failed \n"
-            "blah blah blah"
-        )
+        mail = EmailMessage()
+        mail['Subject'] = 'Stage [my-pipeline/232/my-stage/1] failed'
 
-        msg = gocd.Message(mailtext.encode())
+        msg = gocd.Message(mail.as_bytes())
+
+        self.assertEqual(gocd.Event.FAILS, msg['event'])
+        self.assertEqual('my-pipeline', msg['pipeline'])
+
+    def test_parse_linefeed_in_subject(self):
+        bmail = b'Subject: Stage [my-pipeline/2/stage/1] \r\n failed\r\n\r\n'
+
+        msg = gocd.Message(bmail)
 
         self.assertEqual(gocd.Event.FAILS, msg['event'])
         self.assertEqual('my-pipeline', msg['pipeline'])
 
     def test_parse_unexpected(self):
-        mailtext = (
-            "blah blah blah\n"
-            "Subject: Stage [my-pipeline/232/my-stage/1] other\n"
-            "blah blah blah"
-        )
+        mail = EmailMessage()
+        mail['Subject'] = 'Stage [my-pipeline/232/my-stage/1] other'
 
-        msg = gocd.Message(mailtext.encode())
+        msg = gocd.Message(mail.as_bytes())
 
         self.assertEqual(None, msg['event'])
         self.assertEqual('my-pipeline', msg['pipeline'])

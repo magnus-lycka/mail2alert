@@ -1,5 +1,6 @@
 import logging
-import re
+from email import message_from_bytes
+from email.policy import EmailPolicy
 
 from mail2alert.actions import Actions
 from mail2alert.rules import Rule
@@ -62,9 +63,8 @@ class Mail:
 class Message(dict):
     def __init__(self, content):
         super().__init__()
-        subject_pattern = re.compile(r'Subject:(.+)$', re.M)
-        mo = subject_pattern.search(content.decode())
-        self['subject'] = mo.group(1).strip()
+        msg = message_from_bytes(content, policy=EmailPolicy())
+        self['subject'] = msg['Subject']
 
 
 class MailRule(Rule):
