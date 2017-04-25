@@ -1,6 +1,9 @@
 # mail2alert
 _Send alerts based on received email._
 
+[![Build Status](https://travis-ci.org/magnus-lycka/mail2alert.svg?branch=master)](https://travis-ci.org/magnus-lycka/mail2alert)
+
+
 This tool is intended to help distribute emails to
 different addresses based on their contents.
 
