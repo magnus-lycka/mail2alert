@@ -219,6 +219,8 @@ class Pipelines:
         for pipeline_group in self._config_listing:
             if pipeline_group['name'] == group:
                 return pipeline_group['pipelines']
+        else:
+            return []
 
     @staticmethod
     def all():

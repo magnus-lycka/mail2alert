@@ -39,6 +39,16 @@ class GocdPipelinesTests(unittest.TestCase):
         self.assertFalse(rule_filter(dict(pipeline='b-test-release-x')))
         self.assertFalse(rule_filter(dict(pipeline='a-test')))
 
+    def test_filter_in_group_which_does_not_exist(self):
+        pipelines = gocd.Pipelines(self.pipeline_groups)
+
+        rule_filter = pipelines.in_group(group='betaxxx')
+
+        self.assertFalse(rule_filter(dict(pipeline='b-build')))
+        self.assertFalse(rule_filter(dict(pipeline='b-test')))
+        self.assertFalse(rule_filter(dict(pipeline='b-test-release-x')))
+        self.assertFalse(rule_filter(dict(pipeline='a-test')))
+
     def test_filter_name_like_in_group(self):
         pipelines = gocd.Pipelines(self.pipeline_groups)
 
