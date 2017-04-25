@@ -8,9 +8,6 @@ class Rule:
         self.filter = conf.get('filter', {})
         self.actions = conf.get('actions', [])
 
-    def check(self, msg, functions):
-        raise NotImplementedError  # pragma: no cover
-
     def __str__(self):
         return '<%s: %s>' % (
             self.__class__.__name__,

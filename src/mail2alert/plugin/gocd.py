@@ -40,9 +40,10 @@ class Manager:
 
     @property
     def rule_funcs(self):
-         return {'pipelines': Pipelines(self.pipeline_groups)}
+        return {'pipelines': Pipelines(self.pipeline_groups)}
 
-    def rules(self, rule_list):
+    @staticmethod
+    def rules(rule_list):
         for rule in rule_list:
             yield GocdRule(rule)
 
@@ -59,7 +60,7 @@ class Manager:
                 loop=loop,
                 auth=auth
             ) as session:
-                if not 'url' in self.conf:
+                if 'url' not in self.conf:
                     logging.error("No URL in config, can't fetch pipeline groups")
                     logging.error(self.conf)
                     return
@@ -244,5 +245,3 @@ class Pipelines:
             return False
 
         return name_like_in_group_filter
-
-

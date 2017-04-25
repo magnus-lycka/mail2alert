@@ -18,7 +18,8 @@ class Manager:
         logging.info('Started {}'.format(self.__class__))
         self.conf = conf
 
-    def rules(self, rule_list):
+    @staticmethod
+    def rules(rule_list):
         for rule in rule_list:
             yield MailRule(rule)
 
@@ -53,7 +54,8 @@ class Manager:
 
 
 class Mail:
-    def in_subject(self, *words):
+    @staticmethod
+    def in_subject(*words):
         def words_in_subject(msg):
             return all(word.lower() in msg['subject'].lower() for word in words)
 

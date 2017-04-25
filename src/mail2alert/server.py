@@ -67,7 +67,7 @@ class Mail2AlertProxy(Proxy):
                 break
         if rcpttos:
             data = update_mail_to_from(data, rcpttos, mailfrom)
-            #return super()._deliver(mailfrom, rcpttos, data)
+            # return super()._deliver(mailfrom, rcpttos, data)
             return self.fixed_base_deliver(mailfrom, rcpttos, data)
         else:
             logging.info('Dropping email.')
@@ -107,7 +107,7 @@ def host_port(text, default_port=25):
         return text, default_port
 
 
-async def proxy_mail(loop):
+async def proxy_mail():
     cnf = Configuration()
     local_host, local_port = host_port(cnf['local-smtp'])
     remote_host, remote_port = host_port(cnf['remote-smtp'])
@@ -127,7 +127,7 @@ async def proxy_mail(loop):
 def main(loglevel=logging.INFO):
     logging.basicConfig(level=loglevel)
     loop = asyncio.get_event_loop()
-    loop.create_task(proxy_mail(loop=loop))
+    loop.create_task(proxy_mail())
     try:
         with aiomonitor.start_monitor(loop=loop):
             logging.info("Now you can connect with: nc localhost 50101")

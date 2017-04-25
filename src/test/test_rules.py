@@ -70,7 +70,8 @@ class RuleTests(unittest.TestCase):
 
         self.assertEqual([], rule.check(msg, functions))
 
-    def helper_for_test_basic_check(self, *args):
+    @staticmethod
+    def helper_for_test_basic_check(*args):
         def f(msg):
             return msg['subject'] == 'nuff'
 

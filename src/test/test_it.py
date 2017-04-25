@@ -30,6 +30,11 @@ async def handle_get_pipeline_groups(request):
 
 
 class ServerIntegrationTests(unittest.TestCase):
+    app = None
+    handler = None
+    servers = None
+    server_under_test = None
+
     @classmethod
     def setUpClass(cls):
         cls.config = {
@@ -51,7 +56,7 @@ class ServerIntegrationTests(unittest.TestCase):
 
         loop.run_until_complete(cls.app.startup())
 
-        server_creation=loop.create_server(
+        server_creation = loop.create_server(
             cls.handler, host, port, backlog=128
         )
 
@@ -68,9 +73,11 @@ class ServerIntegrationTests(unittest.TestCase):
 
     def setUp(self):
         self.data = StringIO()
-        self.controller = Controller(Debugging(self.data),
-                                    hostname=self.config['local_host'],
-                                    port=self.config['local_port'])
+        self.controller = Controller(
+            Debugging(self.data),
+            hostname=self.config['local_host'],
+            port=self.config['local_port']
+        )
         self.controller.start()
 
     def test_mail_proxy_pass(self):
@@ -112,9 +119,9 @@ class ServerIntegrationTests(unittest.TestCase):
         async def go():
             client = SMTP(self.config['remote_host'], self.config['remote_port'])
             for subject in (
-                "Server Backup Completed Successfully",
-                "Stage [my-pipeline/2/my-stage/1] failed",
-                "Server Backup Failed",
+                    "Server Backup Completed Successfully",
+                    "Stage [my-pipeline/2/my-stage/1] failed",
+                    "Server Backup Failed",
             ):
                 msg = EmailMessage()
                 msg['Subject'] = subject
@@ -129,6 +136,7 @@ class ServerIntegrationTests(unittest.TestCase):
             self.assertIn('Server Backup Completed Successfully', self.data.getvalue())
             self.assertIn('Server Backup Failed', self.data.getvalue())
             self.assertNotIn('my-pipeline', self.data.getvalue())
+
         loop = asyncio.get_event_loop()
         loop.run_until_complete(go())
 
@@ -153,5 +161,3 @@ class ServerIntegrationTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
-
