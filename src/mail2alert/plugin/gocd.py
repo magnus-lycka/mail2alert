@@ -67,8 +67,8 @@ class Manager:
                 base_url = self.conf['url']
                 url = base_url + '/api/config/pipeline_groups'
                 self.pipeline_groups = await fetch(session, url)
-                logging.debug('Set pipeline groups config to {}'.format(
-                    self.pipeline_groups)
+                logging.debug('Set pipeline groups config with {} pipeline groups.'.format(
+                    len(self.pipeline_groups))
                 )
             await asyncio.sleep(30)
 
