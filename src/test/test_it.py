@@ -151,7 +151,7 @@ class ServerIntegrationTests(unittest.TestCase):
 
         expected = (
             '---------- MESSAGE FOLLOWS ----------\n'
-            'mail options: [\'SIZE=1157\']\n\n'
+            'mail options: [\'SIZE=1193\']\n\n'
             'Date: Wed, 19 Apr 2017 10:42:11 +0200\n'
             'Sender: <go@pagero.com>\n'
             'Reply-To: <go@pagero.com>\n'

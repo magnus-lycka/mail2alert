@@ -30,11 +30,18 @@ them with other mechanisms than email.
 
 def update_mail_to_from(bytes_data, rcpttos, mailfrom):
     msg = message_from_bytes(bytes_data, policy=EmailPolicy())
+
+    logging.debug('Removing To: %s', msg['To'])
     del msg['To']
     msg['To'] = rcpttos
+    logging.debug('Added To: %s', msg['To'])
+
+    logging.debug('Removing From: %s', msg['From'])
     del msg['From']
     msg['From'] = mailfrom
-    mail_bytes = msg.as_bytes()
+    logging.debug('Added From: %s', msg['From'])
+
+    mail_bytes = msg.as_bytes().replace(b'\n', b'\r\n')
     logging.debug(
         'update_mail_to_from got %i bytes and returned %i bytes',
         len(bytes_data),
