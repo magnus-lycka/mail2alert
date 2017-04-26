@@ -1,4 +1,5 @@
 import unittest
+import re
 import asyncio
 import json
 import logging
@@ -66,7 +67,7 @@ class ServerIntegrationTests(unittest.TestCase):
 
         cls.server_under_test = Process(
             target=server.main,
-            args=(logging.WARNING,)
+            args=(logging.DEBUG,)
         )
         cls.server_under_test.start()
         sleep(0.03)
@@ -91,6 +92,7 @@ class ServerIntegrationTests(unittest.TestCase):
         client.send_message(msg)
 
         self.assertIn('Subject: a test', self.data.getvalue())
+        self.assertIn('test åäö', self.data.getvalue())
 
     def test_mail_proxy_catch(self):
         client = SMTP(self.config['remote_host'], self.config['remote_port'])
@@ -103,6 +105,101 @@ class ServerIntegrationTests(unittest.TestCase):
 
         self.assertIn('Subject: Stage [my-pipeline/2/my-stage/1] is broken', self.data.getvalue())
         self.assertIn('cat@example.com', self.data.getvalue())
+        self.assertIn('test åäö', self.data.getvalue())
+
+    def test_mail_proxy_catch_big(self):
+        client = SMTP(self.config['remote_host'], self.config['remote_port'])
+
+        msg = (
+            b'Date: Wed, 19 Apr 2017 10:42:11 +0200\r\n'
+            b'From: <go@pagero.com>\r\n'
+            b'Sender: <go@pagero.com>\r\n'
+            b'Reply-To: <go@pagero.com>\r\n'
+            b'To: <mail2alert@example.com>\r\n'
+            b'Subject: Stage [my-pipeline/6/my-stage/1] is broken\r\n'
+            b'MIME-Version: 1.0\r\n'
+            b'Content-Type: text/plain; charset="UTF-8"\r\n'
+            b'Content-Transfer-Encoding: quoted-printable\r\n'
+            b'Return-Path: go@pagero.com\r\n'
+            b'\r\n'
+            b'See details: http://go.pagero.local/go/pipelines/create-pagero-online-relea=\r\n'
+            b'se/6/SetupGoCDReleaseGroup/1\r\n'
+            b'\r\n'
+            b'-- CHECK-INS --\r\n'
+            b'\r\n'
+            b'Dependency: deploy-to-test/readyToTest\r\n'
+            b'revision: deploy-to-test/881/readyToTest/1, completed on 2017-04-19 08:41:5=\r\n'
+            b'5.272\r\n'
+            b'\r\n'
+            b'Git: ssh://git@git/config/gocd-create-group-of-pipelines\r\n'
+            b'revision: 1f5557f803c998b7ae010dba9ff7fbdf71cab346, modified by Magnus Lyck=\r\n'
+            b'=C3=A5 <magnusl@pagero.com> on 2017-03-15 16:31:40.0\r\n'
+            b'remove temporary pipeline/repo-url fixes from create_group_of_pipelines.py\r\n'
+            b'modified create_group_of_pipelines.py\r\n'
+            b'\r\n'
+            b'Dependency: deploy-to-staging/dummy\r\n'
+            b'revision: deploy-to-staging/56/dummy/1, completed on 2017-03-13 17:42:18.88=\r\n'
+            b'1\r\n'
+            b'\r\n'
+            b'Dependency: po-characterize-tests/runTests\r\n'
+            b'revision: po-characterize-tests/3230/runTests/1, completed on 2016-12-19 15=\r\n'
+            b':55:44.997\r\n'
+            b'\r\n'
+            b'Sent by Go on behalf of ex0247\r\n'
+            b'\r\n'
+        )
+
+        expected = (
+            '---------- MESSAGE FOLLOWS ----------\n'
+            'mail options: [\'SIZE=1157\']\n\n'
+            'Date: Wed, 19 Apr 2017 10:42:11 +0200\n'
+            'Sender: <go@pagero.com>\n'
+            'Reply-To: <go@pagero.com>\n'
+            'Subject: Stage [my-pipeline/6/my-stage/1] is broken\n'
+            'MIME-Version: 1.0\n'
+            'Content-Type: text/plain; charset="UTF-8"\n'
+            'Content-Transfer-Encoding: quoted-printable\n'
+            'Return-Path: go@pagero.com\n'
+            'X-Peer: 127.0.0.1\n'
+            'To: cat@example.com\n'
+            'From: go@pagero.com\n'
+            'X-Peer: (\'127.0.0.1\', 39806)\n'
+            '\n'
+            'See details: http://go.pagero.local/go/pipelines/create-pagero-online-relea=\n'
+            'se/6/SetupGoCDReleaseGroup/1\n'
+            '\n'
+            '-- CHECK-INS --\n'
+            '\n'
+            'Dependency: deploy-to-test/readyToTest\n'
+            'revision: deploy-to-test/881/readyToTest/1, completed on 2017-04-19 08:41:5=\n'
+            '5.272\n'
+            '\n'
+            'Git: ssh://git@git/config/gocd-create-group-of-pipelines\n'
+            'revision: 1f5557f803c998b7ae010dba9ff7fbdf71cab346, modified by Magnus Lyck=\n'
+            '=C3=A5 <magnusl@pagero.com> on 2017-03-15 16:31:40.0\n'
+            'remove temporary pipeline/repo-url fixes from create_group_of_pipelines.py\n'
+            'modified create_group_of_pipelines.py\n'
+            '\n'
+            'Dependency: deploy-to-staging/dummy\n'
+            'revision: deploy-to-staging/56/dummy/1, completed on 2017-03-13 17:42:18.88=\n'
+            '1\n'
+            '\n'
+            'Dependency: po-characterize-tests/runTests\n'
+            'revision: po-characterize-tests/3230/runTests/1, completed on 2016-12-19 15=\n'
+            ':55:44.997\n'
+            '\n'
+            'Sent by Go on behalf of ex0247\n'
+            '------------ END MESSAGE ------------\n'
+        )
+
+        client.sendmail('go@pagero.com', ['mail2alert@example.com'], msg)
+
+        self.maxDiff = None
+        received = self.data.getvalue()
+        received = re.sub(r"X-Peer: \('127.0.0.1', \d+\)", "X-Peer: ('127.0.0.1', 39806)", received)
+        self.assertEqual(expected, received)
+
+
 
     def test_mail_proxy_drop(self):
         client = SMTP(self.config['remote_host'], self.config['remote_port'])

@@ -1,9 +1,27 @@
 import unittest
+import logging
 from email.message import EmailMessage
 from email.headerregistry import Address
 from email import message_from_bytes
 
 from mail2alert import server
+
+
+class GetLoglevelTests(unittest.TestCase):
+    def test_default(self):
+        self.assertEqual(logging.INFO, server.get_loglevel({}))
+
+    def test_fatal(self):
+        env = dict(LOGLEVEL='FATAL')
+        self.assertEqual(logging.FATAL, server.get_loglevel(env))
+
+    def test_wrong(self):
+        env = dict(LOGLEVEL='debug')
+        self.assertEqual(logging.INFO, server.get_loglevel(env))
+
+    def test_misspelled(self):
+        env = dict(LOGLEVEL='debugg')
+        self.assertEqual(logging.INFO, server.get_loglevel(env))
 
 
 class UpdateMailTests(unittest.TestCase):
@@ -24,6 +42,7 @@ class UpdateMailTests(unittest.TestCase):
         new_msg = message_from_bytes(new_binary)
         self.assertEqual('newto@example.com', new_msg['To'])
         self.assertEqual('newfrom@example.com', new_msg['From'])
+
 
 if __name__ == '__main__':
     unittest.main()
