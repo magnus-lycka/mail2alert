@@ -48,10 +48,9 @@ class Manager:
             yield GocdRule(rule)
 
     async def fetch_pipeline_groups(self, loop=None):
-        logging.info('Fetching pipeline groups')
-        loop = loop or asyncio.get_event_loop()
         while True:
             try:
+                logging.info('Fetching pipeline groups')
                 if 'user' in self.conf:
                     auth = aiohttp.BasicAuth(self.conf['user'], self.conf['passwd'])
                 else:
