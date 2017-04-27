@@ -65,7 +65,7 @@ class Mail:
 class Message(dict):
     def __init__(self, content):
         super().__init__()
-        msg = message_from_bytes(content, policy=EmailPolicy())
+        msg = message_from_bytes(content, policy=EmailPolicy(utf8=True, linesep='\r\n'))
         self['subject'] = msg['Subject']
 
 

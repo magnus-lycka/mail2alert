@@ -29,7 +29,7 @@ them with other mechanisms than email.
 
 
 def update_mail_to_from(bytes_data, rcpttos, mailfrom):
-    msg = message_from_bytes(bytes_data, policy=EmailPolicy())
+    msg = message_from_bytes(bytes_data, policy=EmailPolicy(utf8=True, linesep='\r\n'))
 
     logging.debug('Removing To: %s', msg['To'])
     del msg['To']
@@ -41,7 +41,7 @@ def update_mail_to_from(bytes_data, rcpttos, mailfrom):
     msg['From'] = mailfrom
     logging.debug('Added From: %s', msg['From'])
 
-    mail_bytes = msg.as_bytes().replace(b'\n', b'\r\n')
+    mail_bytes = msg.as_bytes()
     logging.debug(
         'update_mail_to_from got %i bytes and returned %i bytes',
         len(bytes_data),
@@ -161,7 +161,10 @@ def get_loglevel(env=os.environ):
 def main(loglevel=None):
     if loglevel is None:
         loglevel = get_loglevel()
-    logging.basicConfig(level=loglevel)
+    logging.basicConfig(
+        format="%(asctime)s:%(levelname)s:%(name)s:%(message)s",
+        level=loglevel
+    )
     loop = asyncio.get_event_loop()
     loop.create_task(proxy_mail())
     try:

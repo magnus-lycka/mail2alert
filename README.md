@@ -13,12 +13,11 @@ group email addresses based on their subject lines.
 
 ## Requirements
 
-This software is written using Pythons asyncio libraries,
-and the new async / await syntax. It's been developed and
-tested with Python 3.6.1.
+This program uses features introduced in Python 3.6.
 
-The easiest way to deploy it is probably in a docker, see
-__Deploy and Run__ section below.
+The easiest way to deploy it is probably in a docker,
+see __Deploy and Run__ section below and the supplied
+`Dockerfile`.
 
 
 ## Operation
@@ -253,3 +252,21 @@ http://aiomonitor.readthedocs.io/en/latest/
 
 Use `docker restart mail2alert-app` after changing
 `configuration.yml` to reread it.
+
+### Environment Variables
+
+The environment variable `MAIL2ALERT_CONFIGURATION` tells mail2alert
+where to find the configuration. Don't forget that the path needs to
+make sense inside the docker if that's how you deploy.
+
+E.g. if you keep the config in /etc/mail2alert/configuration.yml on
+the host, and run the docker with
+`--volume /etc/mail2alert:/mail2alert_config:ro` you would also
+use
+`-e MAIL2ALERT_CONFIGURATION=/mail2alert_config/configuration.yml`
+
+The variable `LOGLEVEL` tells mail2alert how much to log, e.g.
+`LOGLEVEL=DEBUG`.
+See <https://docs.python.org/3/library/logging.html#levels>
+
+

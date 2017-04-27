@@ -51,25 +51,32 @@ class Manager:
         logging.info('Fetching pipeline groups')
         loop = loop or asyncio.get_event_loop()
         while True:
-            if 'user' in self.conf:
-                auth = aiohttp.BasicAuth(self.conf['user'], self.conf['passwd'])
-            else:
-                auth = None
-                logging.warning('Missing user in configuration')
-            async with aiohttp.ClientSession(
-                loop=loop,
-                auth=auth
-            ) as session:
-                if 'url' not in self.conf:
-                    logging.error("No URL in config, can't fetch pipeline groups")
-                    logging.error(self.conf)
-                    return
-                base_url = self.conf['url']
-                url = base_url + '/api/config/pipeline_groups'
-                self.pipeline_groups = await fetch(session, url)
-                logging.debug('Set pipeline groups config with {} pipeline groups.'.format(
-                    len(self.pipeline_groups))
-                )
+            try:
+                if 'user' in self.conf:
+                    auth = aiohttp.BasicAuth(self.conf['user'], self.conf['passwd'])
+                else:
+                    auth = None
+                    logging.warning('Missing user in configuration')
+                async with aiohttp.ClientSession(
+                    loop=loop,
+                    auth=auth
+                ) as session:
+                    if 'url' not in self.conf:
+                        logging.error("No URL in config, can't fetch pipeline groups")
+                        logging.error(self.conf)
+                        return
+                    base_url = self.conf['url']
+                    url = base_url + '/api/config/pipeline_groups'
+                    pipeline_groups = await fetch(session, url)
+                    if pipeline_groups:
+                        self.pipeline_groups = pipeline_groups
+                        logging.debug('Set pipeline groups config with {} pipeline groups.'.format(
+                            len(self.pipeline_groups))
+                        )
+                    else:
+                        logging.warning('Unable to fetch pipeline groups config.')
+            except Exception as error:
+                logging.exception('Exception in fetch_pipeline_groups: %s', error)
             await asyncio.sleep(30)
 
     def wants_message(self, mail_from, rcpt_tos, content):
