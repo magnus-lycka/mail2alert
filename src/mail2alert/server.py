@@ -90,6 +90,7 @@ class Mail2AlertProxy(Proxy):
                 break
         if rcpttos:
             # return super()._deliver(mailfrom, rcpttos, data)
+            logging.info('Sending mail to %s', rcpttos)
             return self.fixed_base_deliver(mailfrom, rcpttos, data)
         else:
             logging.info('Dropping email.')

@@ -1,10 +1,11 @@
 import yaml
 
 def add_rules(receiver, pipelinegroups):
+    mail_domain = 'example.com'
     rules = []
     for group in pipelinegroups:
         rule1 = {
-            'actions': ['mailto:%s.example.com' % receiver],
+            'actions': ['mailto:%s@%s' % (receiver, mail_domain)],
             'filter': {
                 'events': ['FIXES', 'BREAKS'],
                 'function': 'pipelines.in_group',
@@ -13,10 +14,10 @@ def add_rules(receiver, pipelinegroups):
         }
         rules.append(rule1)
         rule2 = {
-            'actions': ['mailto:%s.example.com' % receiver],
+            'actions': ['mailto:%s@%s' % (receiver, mail_domain)],
             'filter': {
                 'events': ['FIXES', 'BREAKS'],
-                'function': 'pipelines.in_group',
+                'function': 'pipelines.name_like_in_group',
                 'args': [r'(.+)-release.*', group]
             }
         }

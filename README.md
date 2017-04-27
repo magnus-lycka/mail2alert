@@ -273,3 +273,9 @@ The variable `LOGLEVEL` tells mail2alert how much to log, e.g.
 See <https://docs.python.org/3/library/logging.html#levels>
 
 
+## TODO
+
+- Some way to check rules before loading them. It's currently very
+  easy to break the system with a mistake in `configuration.yml`.
+- Slack support.
+- Some way to use gocd.Manager.test().
