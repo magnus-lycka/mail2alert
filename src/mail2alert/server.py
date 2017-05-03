@@ -7,6 +7,7 @@ import smtplib
 from email import message_from_bytes
 from email.policy import EmailPolicy
 
+import yaml
 import aiomonitor
 from aiosmtpd.smtp import SMTP
 from aiosmtpd.controller import Controller
@@ -52,7 +53,7 @@ def update_mail_to_from(bytes_data, rcpttos, mailfrom):
 
 class SMTPUTF8Controller(Controller):
     def factory(self):
-        return  SMTP(self.handler, enable_SMTPUTF8=True)
+        return SMTP(self.handler, enable_SMTPUTF8=True)
 
 
 class Mail2AlertProxy(Proxy):
@@ -76,15 +77,15 @@ class Mail2AlertProxy(Proxy):
             i += 1
         lines.insert(i, b'X-Peer: %s%s' % (session.peer[0].encode('utf-8'), ending))
         data = b''.join(lines)
-        refused = self._deliver(envelope.mail_from, envelope.rcpt_tos, data)
+        refused = await self._adeliver(envelope.mail_from, envelope.rcpt_tos, data)
         if refused:
             logging.info('we got some refusals: %s' % refused)
         return '250 OK'
 
-    def _deliver(self, mailfrom, rcpttos, data):
+    async def _adeliver(self, mailfrom, rcpttos, data):
         for manager in self.mail2alert_managers:
             if manager.wants_message(mailfrom, rcpttos, data):
-                mailfrom, rcpttos, data = manager.process_message(mailfrom, rcpttos, data)
+                mailfrom, rcpttos, data = await manager.process_message(mailfrom, rcpttos, data)
                 if rcpttos:
                     data = update_mail_to_from(data, rcpttos, mailfrom)
                 break
@@ -156,6 +157,9 @@ async def proxy_mail():
 
 def get_loglevel(env=os.environ):
     log_env = env.get('LOGLEVEL')
+    # The logging API is so-so. The corresponding public function
+    # getLevelName() is very odd, and doesn't work as documented.
+    # noinspection PyProtectedMember
     return logging._nameToLevel.get(log_env, logging.INFO)
 
 
@@ -174,3 +178,38 @@ def main(loglevel=None):
             loop.run_forever()
     except KeyboardInterrupt:
         logging.info('Got KeyboardInterrupt')
+
+
+def get_managers():
+    cnf = Configuration()
+    managers = {}
+    for manager in cnf['managers']:
+        manager_module = importlib.import_module('.' + manager['name'], plugin.__name__)
+        mgr = manager_module.Manager(manager)
+        managers[manager['name']] = mgr
+    return managers
+
+
+async def aselftest():
+    managers = get_managers()
+    report = {}
+    for name, manager in sorted(managers.items()):
+        report[name] = await manager.test()
+    return report
+
+
+def selftest(content_type=None):
+    loglevel = get_loglevel()
+    logging.basicConfig(
+        format="%(asctime)s:%(levelname)s:%(name)s:%(message)s",
+        level=loglevel
+    )
+    loop = asyncio.get_event_loop()
+    task = loop.create_task(aselftest())
+    loop.run_until_complete(task)
+    report = task.result()
+    if content_type == 'yaml':
+        noalias_dumper = yaml.dumper.SafeDumper
+        noalias_dumper.ignore_aliases = lambda self, data: True
+        return yaml.dump(report, default_flow_style=False, Dumper=noalias_dumper)
+    return report

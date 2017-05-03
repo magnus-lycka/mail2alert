@@ -1,5 +1,25 @@
 #!/usr/bin/env python3
+from argparse import ArgumentParser
+
 from mail2alert import server
 
 if __name__ == '__main__':
-    server.main()
+    parser = ArgumentParser(description='Run mail2alert')
+    choices = parser.add_mutually_exclusive_group()
+    choices.add_argument(
+        '--serve',
+        action='store_true',
+        help='Normal operation'
+    )
+    choices.add_argument(
+        '--test',
+        action='store_true',
+        help='Report on configuration and exit'
+    )
+    pargs = parser.parse_args()
+    if pargs.serve:
+        server.main()
+    elif pargs.test:
+        print(server.selftest('yaml'))
+    else:
+        parser.print_help()

@@ -41,16 +41,19 @@ class Manager:
         if wanted_from:
             return wanted_from == mail_from
 
-    def process_message(self, mail_from, rcpt_tos, binary_content):
+    async def process_message(self, mail_from, rcpt_tos, binary_content):
         logging.debug('process_message("{}", {}, {})'.format(mail_from, rcpt_tos, binary_content))
         recipients = []
         msg = Message(binary_content)
-        logging.debug('Extracted message %s' % msg)
+        logging.info('Extracted message %s' % msg)
         for rule in self.rules(self.conf['rules']):
             logging.debug('Check %s' % rule)
             actions = Actions(rule.check(msg, self.rule_funcs))
             recipients.extend(actions.mailto)
         return mail_from, recipients, binary_content
+
+    async def test(self):
+        pass
 
 
 class Mail:
@@ -67,6 +70,7 @@ class Message(dict):
         super().__init__()
         msg = message_from_bytes(content, policy=EmailPolicy(utf8=True, linesep='\r\n'))
         self['subject'] = msg['Subject']
+        logging.info('Message with subject: %s', self['subject'])
 
 
 class MailRule(Rule):

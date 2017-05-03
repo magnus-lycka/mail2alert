@@ -1,4 +1,6 @@
 import unittest
+import signal
+import os
 import re
 import asyncio
 import json
@@ -72,6 +74,24 @@ class ServerIntegrationTests(unittest.TestCase):
         cls.server_under_test.start()
         sleep(0.03)
 
+    @classmethod
+    def tearDownClass(cls):
+        server_under_test_pid = cls.server_under_test.pid
+        os.kill(server_under_test_pid, signal.SIGINT)
+
+        cls.server_under_test.terminate()
+
+        loop = asyncio.get_event_loop()
+
+        server_closures = []
+        for srv in cls.servers:
+            srv.close()
+            server_closures.append(srv.wait_closed())
+        loop.run_until_complete(asyncio.gather(*server_closures, loop=loop))
+        loop.run_until_complete(cls.app.shutdown())
+        loop.run_until_complete(cls.handler.shutdown(60.0))
+        loop.run_until_complete(cls.app.cleanup())
+
     def setUp(self):
         self.data = StringIO()
         self.controller = Controller(
@@ -80,6 +100,9 @@ class ServerIntegrationTests(unittest.TestCase):
             port=self.config['local_port']
         )
         self.controller.start()
+
+    def tearDown(self):
+        self.controller.stop()
 
     def test_mail_proxy_pass(self):
         client = SMTP(self.config['remote_host'], self.config['remote_port'])
@@ -199,8 +222,6 @@ class ServerIntegrationTests(unittest.TestCase):
         received = re.sub(r"X-Peer: \('127.0.0.1', \d+\)", "X-Peer: ('127.0.0.1', 39806)", received)
         self.assertEqual(expected, received)
 
-
-
     def test_mail_proxy_drop(self):
         client = SMTP(self.config['remote_host'], self.config['remote_port'])
         msg = EmailMessage()
@@ -210,7 +231,7 @@ class ServerIntegrationTests(unittest.TestCase):
         msg.set_content('test åäö')
         client.send_message(msg)
 
-        self.assertEquals('', self.data.getvalue())
+        self.assertEqual('', self.data.getvalue())
 
     def test_mail_proxy_backup(self):
         async def go():
@@ -236,24 +257,6 @@ class ServerIntegrationTests(unittest.TestCase):
 
         loop = asyncio.get_event_loop()
         loop.run_until_complete(go())
-
-    def tearDown(self):
-        self.controller.stop()
-
-    @classmethod
-    def tearDownClass(cls):
-        cls.server_under_test.terminate()
-
-        loop = asyncio.get_event_loop()
-
-        server_closures = []
-        for srv in cls.servers:
-            srv.close()
-            server_closures.append(srv.wait_closed())
-        loop.run_until_complete(asyncio.gather(*server_closures, loop=loop))
-        loop.run_until_complete(cls.app.shutdown())
-        loop.run_until_complete(cls.handler.shutdown(60.0))
-        loop.run_until_complete(cls.app.cleanup())
 
 
 if __name__ == '__main__':

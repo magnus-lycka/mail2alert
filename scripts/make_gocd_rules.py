@@ -1,4 +1,10 @@
 import yaml
+import argparse
+
+"""
+Example script for bulk generation of rules.
+"""
+
 
 def add_rules(receiver, pipelinegroups):
     mail_domain = 'example.com'
@@ -7,7 +13,7 @@ def add_rules(receiver, pipelinegroups):
         rule1 = {
             'actions': ['mailto:%s@%s' % (receiver, mail_domain)],
             'filter': {
-                'events': ['FIXES', 'BREAKS'],
+                'events': ['FIXED', 'BREAKS'],
                 'function': 'pipelines.in_group',
                 'args': [group]
             }
@@ -16,7 +22,7 @@ def add_rules(receiver, pipelinegroups):
         rule2 = {
             'actions': ['mailto:%s@%s' % (receiver, mail_domain)],
             'filter': {
-                'events': ['FIXES', 'BREAKS'],
+                'events': ['FIXED', 'BREAKS'],
                 'function': 'pipelines.name_like_in_group',
                 'args': [r'(.+)-release.*', group]
             }
@@ -24,7 +30,10 @@ def add_rules(receiver, pipelinegroups):
         rules.append(rule2)
     return rules
 
+
 def main():
+    parser = argparse.ArgumentParser(description='Create rules config')
+    parser.add_argument('-i', '--input', )
     rules = []
     with open('actions.yml') as actions:
         for receiver, pipelinegroups in yaml.load(actions).items():

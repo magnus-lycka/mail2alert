@@ -1,8 +1,14 @@
 import unittest
+import json
 import logging
+import socketserver
 from email.message import EmailMessage
 from email.headerregistry import Address
 from email import message_from_bytes
+from multiprocessing import Process
+from http.server import SimpleHTTPRequestHandler
+from time import sleep
+
 
 from mail2alert import server
 
@@ -90,6 +96,89 @@ class UpdateMailTests(unittest.TestCase):
         )
 
         self.assertEqual(msg, new)
+
+
+class MyWebRequestHandler(SimpleHTTPRequestHandler):
+    def do_GET(self):
+        pipeline_groups = [
+            {
+                "pipelines": [
+                    {"name": "my-pipeline"},
+                ],
+                "name": "my-group"
+            },
+        ]
+        content = json.dumps(pipeline_groups, indent=4).encode('ascii')
+        self.send_response(200)
+        self.send_header('Content-type', 'application/json')
+        self.send_header('Content-length', len(content))
+        self.end_headers()
+        self.wfile.write(content)
+
+
+class MyServer(socketserver.TCPServer):
+    allow_reuse_address = True
+
+
+def serve_web():
+    with MyServer(("", 8080), MyWebRequestHandler) as httpd:
+        print("serving at port", 8080)
+        httpd.serve_forever()
+
+
+class SelfTestTests(unittest.TestCase):
+    webserver = None
+
+    @classmethod
+    def setUpClass(cls):
+        cls.webserver = Process(target=serve_web)
+        cls.webserver.start()
+        sleep(0.05)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.webserver.terminate()
+
+    def test_self_test_yaml(self):
+        expected_yaml = (
+            'gocd:\n'
+            '- pipeline_group: my-group\n'
+            '  pipelines:\n'
+            '  - alerts:\n'
+            '    - actions:\n'
+            '      - mailto:cat@example.com\n'
+            '      events:\n'
+            '      - BREAKS\n'
+            '    pipeline: my-pipeline\n'
+            'mail: null\n'
+        )
+
+        report = server.selftest(content_type='yaml')
+
+        self.assertEqual(expected_yaml, report)
+
+    def test_self_test(self):
+        expected_gocd = [
+            {
+                'pipeline_group': 'my-group',
+                'pipelines': [
+                    {
+                        'alerts': [
+                            {'actions': ['mailto:cat@example.com'],
+                             'events': ['BREAKS']}
+                        ],
+                        'pipeline': 'my-pipeline'
+                    }
+                ]
+            }
+        ]
+
+        report = server.selftest()
+
+        self.assertEqual(sorted(report), ['gocd', 'mail'])
+        self.assertEqual(report['mail'], None)
+        self.assertEqual(report['gocd'], expected_gocd)
+
 
 if __name__ == '__main__':
     unittest.main()

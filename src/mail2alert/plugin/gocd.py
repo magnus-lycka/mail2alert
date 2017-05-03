@@ -11,7 +11,7 @@ from ..actions import Actions
 from ..rules import Rule
 
 
-async def fetch(session, url):
+async def get_json_url(session, url):
     logging.debug('Fetching url %s' % url)
     with aiohttp.Timeout(10, loop=session.loop):
         async with session.get(url) as response:
@@ -34,49 +34,63 @@ class Manager:
     def __init__(self, conf):
         logging.info('Started {}'.format(self.__class__))
         self.conf = conf
-        self.pipeline_groups = []
-        coro = self.fetch_pipeline_groups()
-        asyncio.ensure_future(coro)
+        self._pipeline_groups = None
+        self._pipeline_groups_time = 0
+        self._auth = NotImplemented  # None is a valid value. I use this as not set.
 
     @property
-    def rule_funcs(self):
-        return {'pipelines': Pipelines(self.pipeline_groups)}
+    def pipeline_groups_timeout(self):
+        return self._pipeline_groups_time + 30
+
+    @property
+    async def pipeline_groups(self):
+        if asyncio.get_event_loop().time() > self.pipeline_groups_timeout:
+            # We can probably survive that subsequent requests use old
+            # config while fetch is in progress.
+            self._pipeline_groups_time = asyncio.get_event_loop().time()
+            await self.fetch_pipeline_groups()
+        return self._pipeline_groups
+
+    @property
+    async def rule_funcs(self):
+        return {'pipelines': Pipelines(await self.pipeline_groups)}
 
     @staticmethod
     def rules(rule_list):
         for rule in rule_list:
             yield GocdRule(rule)
 
-    async def fetch_pipeline_groups(self, loop=None):
-        while True:
-            try:
-                logging.info('Fetching pipeline groups')
-                if 'user' in self.conf:
-                    auth = aiohttp.BasicAuth(self.conf['user'], self.conf['passwd'])
+    @property
+    def auth(self):
+        if self._auth is NotImplemented:
+            if 'user' in self.conf:
+                self._auth = aiohttp.BasicAuth(self.conf['user'], self.conf['passwd'])
+            else:
+                self._auth = None
+                logging.warning('Missing user in configuration')
+        return self._auth
+
+    async def fetch_pipeline_groups(self):
+        try:
+            logging.info('Fetching pipeline groups')
+            async with aiohttp.ClientSession(auth=self.auth) as session:
+                if 'url' not in self.conf:
+                    error = "No URL in config, can't fetch pipeline groups"
+                    logging.error(error)
+                    logging.error(self.conf)
+                    raise ValueError(error)
+                base_url = self.conf['url']
+                url = base_url + '/api/config/pipeline_groups'
+                pipeline_groups = await get_json_url(session, url)
+                if pipeline_groups:
+                    self._pipeline_groups = pipeline_groups
+                    logging.debug('Set pipeline groups config with {} pipeline groups.'.format(
+                        len(pipeline_groups))
+                    )
                 else:
-                    auth = None
-                    logging.warning('Missing user in configuration')
-                async with aiohttp.ClientSession(
-                    loop=loop,
-                    auth=auth
-                ) as session:
-                    if 'url' not in self.conf:
-                        logging.error("No URL in config, can't fetch pipeline groups")
-                        logging.error(self.conf)
-                        return
-                    base_url = self.conf['url']
-                    url = base_url + '/api/config/pipeline_groups'
-                    pipeline_groups = await fetch(session, url)
-                    if pipeline_groups:
-                        self.pipeline_groups = pipeline_groups
-                        logging.debug('Set pipeline groups config with {} pipeline groups.'.format(
-                            len(self.pipeline_groups))
-                        )
-                    else:
-                        logging.warning('Unable to fetch pipeline groups config.')
-            except Exception as error:
-                logging.exception('Exception in fetch_pipeline_groups: %s', error)
-            await asyncio.sleep(30)
+                    logging.warning('Unable to fetch pipeline groups config.')
+        except Exception as error:
+            logging.exception('Exception in fetch_pipeline_groups: %s', error)
 
     def wants_message(self, mail_from, rcpt_tos, content):
         """
@@ -92,46 +106,46 @@ class Manager:
         if wanted_from:
             return wanted_from == mail_from
 
-    def process_message(self, mail_from, rcpt_tos, binary_content):
+    async def process_message(self, mail_from, rcpt_tos, binary_content):
         logging.debug('process_message("{}", {}, {})'.format(mail_from, rcpt_tos, binary_content))
         recipients = []
         msg = Message(binary_content)
-        logging.debug('Extracted message %s' % msg)
+        logging.info('Extracted message %s' % msg)
         for rule in self.rules(self.conf['rules']):
             logging.debug('Check %s' % rule)
             rule_funcs = {
-                'pipelines': Pipelines(self.pipeline_groups),
+                'pipelines': Pipelines(await self.pipeline_groups),
             }
             actions = Actions(rule.check(msg, rule_funcs))
             recipients.extend(actions.mailto)
         return mail_from, recipients, binary_content
 
-    def test(self):
+    async def test(self):
         """
         This method can be used both to check that the configuration is correct,
         and to produce a report about where alerts go.
         """
         report = []
         pipeline_map = {}
-        for pipeline_group in self.pipeline_groups:
+        for pipeline_group in await self.pipeline_groups:
             group_report = {
-                'name': pipeline_group['name'],
-                'pipelines': [{'name': p['name']} for p in pipeline_group['pipelines']]
+                'pipeline_group': pipeline_group['name'],
+                'pipelines': [{'pipeline': p['name']} for p in pipeline_group['pipelines']]
             }
             report.append(group_report)
             for pipeline_report in group_report['pipelines']:
-                pipeline_map[pipeline_report['name']] = pipeline_report
+                pipeline_map[pipeline_report['pipeline']] = pipeline_report
 
-        for msg in self.test_msgs():
+        for msg in await self.test_msgs():
             for rule in self.rules(self.conf['rules']):
-                if rule.check(msg, {'pipelines': Pipelines(self.pipeline_groups)}):
+                if rule.check(msg, {'pipelines': Pipelines(await self.pipeline_groups)}):
                     logging.debug('msg %s checks for rule %s' % (msg, rule))
                     self.add_alert_to_report(msg, rule, pipeline_map)
         return report
 
-    def test_msgs(self):
+    async def test_msgs(self):
         pipelines = []
-        for grp in self.pipeline_groups:
+        for grp in await self.pipeline_groups:
             pipelines.extend([p['name'] for p in grp['pipelines']])
         return (dict(pipeline=p, event=e) for p, e in product(pipelines, Event))
 

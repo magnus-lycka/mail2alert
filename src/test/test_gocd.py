@@ -1,3 +1,4 @@
+import asyncio
 import unittest
 from email.message import EmailMessage
 
@@ -199,7 +200,7 @@ class ManagerTests(unittest.TestCase):
 
     def test_test_msgs(self):
         mgr = gocd.Manager(dict())
-        mgr.pipeline_groups = [
+        mgr._pipeline_groups = [
             {
                 'name': 'g1',
                 'pipelines': [
@@ -232,7 +233,10 @@ class ManagerTests(unittest.TestCase):
             dict(event=gocd.Event.PASSES, pipeline='p21'),
         ]
 
-        actual = mgr.test_msgs()
+        loop = asyncio.get_event_loop()
+        test_task = loop.create_task(mgr.test_msgs())
+        loop.run_until_complete(test_task)
+        actual = test_task.result()
 
         self.maxDiff = 1000
         self.assertEqual(list(actual), expected)
@@ -280,10 +284,10 @@ class ManagerTests(unittest.TestCase):
         ]
         expected = [
             {
-                'name': 'g1',
+                'pipeline_group': 'g1',
                 'pipelines': [
                     {
-                        'name': 'p11',
+                        'pipeline': 'p11',
                         'alerts': [
                             {
                                 'actions': ['mailto:we@example.com'],
@@ -296,7 +300,7 @@ class ManagerTests(unittest.TestCase):
                         ]
                     },
                     {
-                        'name': 'p12',
+                        'pipeline': 'p12',
                         'alerts': [
                             {
                                 'actions': ['mailto:we@example.com'],
@@ -311,10 +315,10 @@ class ManagerTests(unittest.TestCase):
                 ]
             },
             {
-                'name': 'g2',
+                'pipeline_group': 'g2',
                 'pipelines': [
                     {
-                        'name': 'p21',
+                        'pipeline': 'p21',
                         'alerts': [
                             {
                                 'actions': ['mailto:nosy@example.com'],
@@ -330,9 +334,12 @@ class ManagerTests(unittest.TestCase):
             },
         ]
         mgr = gocd.Manager(dict(rules=rules))
-        mgr.pipeline_groups = pipeline_groups
+        mgr._pipeline_groups = pipeline_groups
 
-        actual = mgr.test()
+        loop = asyncio.get_event_loop()
+        test_task = loop.create_task(mgr.test())
+        loop.run_until_complete(test_task)
+        actual = test_task.result()
 
         self.maxDiff = 10000
         self.assertEqual(actual, expected)

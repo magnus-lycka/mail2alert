@@ -1,6 +1,6 @@
 # mail2alert
 
-![logo](https://raw.githubusercontent.com/magnus-lycka/mail2alert/master/static/mail2alert_logo.jpg)
+![logo](https://raw.githubusercontent.com/magnus-lycka/mail2alert/master/static/mail2alert_logo.png)
 
 _Send alerts based on received email._
 
@@ -19,7 +19,7 @@ group email addresses based on their subject lines.
 This program uses features introduced in Python 3.6.
 
 The easiest way to deploy it is probably in a docker,
-see __Deploy and Run__ section below and the supplied
+see [__Deploy and Run__](#deploy-and-run) section below and the supplied
 `Dockerfile`.
 
 
@@ -142,7 +142,7 @@ interface
         def wants_message(self, mail_from, rcpt_tos, binary_content):
             return boolean  # True==we want this email
 
-        def process_message(self, mail_from, rcpt_tos, binary_content):
+        async def process_message(self, mail_from, rcpt_tos, binary_content):
             """
             Use the rules to determine whether we want the message,
             and how to modify any of the arguments before returning
@@ -253,6 +253,11 @@ This directory will be read-only-mounted by the docker.
 monitor to the application for debugging. See
 http://aiomonitor.readthedocs.io/en/latest/
 
+Use the `selftest.sh` after you've changed `configuration.yml`
+to check that your configuration is valid and as planned.
+The script needs one argument, that's the path to the directory
+with the new `configuration.yml`.
+
 Use `docker restart mail2alert-app` after changing
 `configuration.yml` to reread it.
 
@@ -279,3 +284,4 @@ See <https://docs.python.org/3/library/logging.html#levels>
   easy to break the system with a mistake in `configuration.yml`.
 - Slack support.
 - Some way to use gocd.Manager.test().
+- Refactor plugins to remove duplication.

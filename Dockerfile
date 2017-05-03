@@ -11,4 +11,5 @@ EXPOSE 1025
 EXPOSE 50101
 EXPOSE 50102
 
-CMD [ "python", "./mail2alert" ]
+ENTRYPOINT [ "python", "./mail2alert" ]
+CMD ["--serve"]
