@@ -13,5 +13,7 @@ install:
 
 script:
   - (cd src/test && nosetests)
+
+after_success:
   - docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD"
   - ./docker-release.sh
