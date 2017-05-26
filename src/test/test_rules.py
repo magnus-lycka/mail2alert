@@ -1,7 +1,7 @@
 import unittest
 
 import mail2alert.rules
-
+    
 
 class RuleTests(unittest.TestCase):
     def test_make_rule(self):
@@ -48,7 +48,7 @@ class RuleTests(unittest.TestCase):
         actions = ['mailto:a@b.c']
         rule = mail2alert.rules.Rule(
             dict(
-                filter=dict(function='rule_tests.helper_for_test_basic_check'),
+                filter=dict(function='rule_tests._helper_for_test_basic_check'),
                 actions=actions
             )
         )
@@ -63,7 +63,7 @@ class RuleTests(unittest.TestCase):
         actions = ['mailto:a@b.c']
         rule = mail2alert.rules.Rule(
             dict(
-                filter=dict(function='rule_tests.helper_for_test_basic_check'),
+                filter=dict(function='rule_tests._helper_for_test_basic_check'),
                 actions=actions
             )
         )
@@ -71,7 +71,7 @@ class RuleTests(unittest.TestCase):
         self.assertEqual([], rule.check(msg, functions))
 
     @staticmethod
-    def helper_for_test_basic_check(*args):
+    def _helper_for_test_basic_check(*args):
         def f(msg):
             return msg['subject'] == 'nuff'
 

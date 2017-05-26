@@ -15,7 +15,7 @@ class Manager:
     """
 
     def __init__(self, conf):
-        logging.info('Started {}'.format(self.__class__))
+        logging.info('Started %s', self.__class__)
         self.conf = conf
 
     @staticmethod
@@ -34,20 +34,21 @@ class Manager:
         wanted = self.conf['messages-we-want']
         wanted_to = wanted.get('to')
         wanted_from = wanted.get('from')
-        logging.debug('We vant to: {} or from: {}'.format(wanted_to, wanted_from))
-        logging.debug('We got to: {} and from: {}'.format(rcpt_tos, mail_from))
+        logging.debug('We vant to: %s or from: %s', wanted_to, wanted_from)
+        logging.debug('We got to: %s and from: %s', rcpt_tos, mail_from)
         if wanted_to:
             return wanted_to in rcpt_tos
         if wanted_from:
             return wanted_from == mail_from
 
     async def process_message(self, mail_from, rcpt_tos, binary_content):
-        logging.debug('process_message("{}", {}, {})'.format(mail_from, rcpt_tos, binary_content))
+        logging.debug('process_message("%s", %s, %s)',
+                      mail_from, rcpt_tos, binary_content)
         recipients = []
         msg = Message(binary_content)
-        logging.info('Extracted message %s' % msg)
+        logging.info('Extracted message %s', msg)
         for rule in self.rules(self.conf['rules']):
-            logging.debug('Check %s' % rule)
+            logging.debug('Check %s', rule)
             actions = Actions(rule.check(msg, self.rule_funcs))
             recipients.extend(actions.mailto)
         return mail_from, recipients, binary_content
@@ -60,7 +61,10 @@ class Mail:
     @staticmethod
     def in_subject(*words):
         def words_in_subject(msg):
-            return all(word.lower() in msg['subject'].lower() for word in words)
+            return all(
+                word.lower() in msg['subject'].lower()
+                for word in words
+            )
 
         return words_in_subject
 
@@ -68,7 +72,10 @@ class Mail:
 class Message(dict):
     def __init__(self, content):
         super().__init__()
-        msg = message_from_bytes(content, policy=EmailPolicy(utf8=True, linesep='\r\n'))
+        msg = message_from_bytes(
+            content,
+            policy=EmailPolicy(utf8=True, linesep='\r\n')
+        )
         self['subject'] = msg['Subject']
         logging.info('Message with subject: %s', self['subject'])
 

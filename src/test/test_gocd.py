@@ -1,5 +1,6 @@
 import asyncio
 import unittest
+from collections import defaultdict
 from email.message import EmailMessage
 
 from mail2alert.plugin import gocd
@@ -344,6 +345,48 @@ class ManagerTests(unittest.TestCase):
         self.maxDiff = 10000
         self.assertEqual(actual, expected)
 
+    def test_process_message(self):
+        """
+        test_process_message
+        If previous state was successful (fixed or passed) and the current
+        state is a failure, it's a BREAKS, eveen if the message says "failed"
+        instead of "is broken".
+        Same thing other way: "passed" => "is fixed" if previous was a fail.
+        """
+
+        async def check_process_message(future):
+            rules = [
+                {
+                    'actions': ['mailto:nosy@example.com'],
+                    'filter': {
+                        'events': ['BREAKS'],
+                        'function': 'pipelines.all',
+                    }
+                },
+            ]
+            mgr = gocd.Manager(dict(rules=rules))
+            mgr.previous_pipeline_state = defaultdict(gocd.BuildStateSuccess)
+
+            mail_from = 'sender@example.com'
+            rcpt_tos = ['receiver@example.com']
+            msg = EmailMessage()
+            msg['Subject'] = 'Stage [my-pipeline/232/my-stage/1] failed'
+            msg['From'] = mail_from
+            msg['To'] = rcpt_tos
+            msg.set_content('test')
+
+            future.set_result(await mgr.process_message(mail_from, rcpt_tos, msg.as_bytes()))
+
+        loop = asyncio.get_event_loop()
+        future = asyncio.Future()
+        asyncio.ensure_future(check_process_message(future))
+        loop.run_until_complete(future)
+
+        sender, receiver, body = future.result()
+        self.assertEqual('sender@example.com', sender)
+        self.assertEqual(['nosy@example.com'], receiver)
+        self.assertIn(b'failed', body)
+
 
 class MessageTests(unittest.TestCase):
     def test_parse_fixed_pipeline(self):
@@ -399,6 +442,14 @@ class MessageTests(unittest.TestCase):
         self.assertEqual(gocd.Event.FAILS, msg['event'])
         self.assertEqual('my-pipeline', msg['pipeline'])
 
+    def test_parse_event_mismatching_history(self):
+        bmail = b'Subject: Stage [my_pipeline/2/stage/1] \r\n failed\r\n\r\n'
+
+        msg = gocd.Message(bmail, previous_states=dict(my_pipeline=gocd.BuildStateSuccess()))
+
+        self.assertEqual(gocd.Event.BREAKS, msg['event'])
+        self.assertEqual('my_pipeline', msg['pipeline'])
+
     def test_parse_unexpected(self):
         mail = EmailMessage()
         mail['Subject'] = 'Stage [my-pipeline/232/my-stage/1] other'
@@ -407,6 +458,61 @@ class MessageTests(unittest.TestCase):
 
         self.assertEqual(None, msg['event'])
         self.assertEqual('my-pipeline', msg['pipeline'])
+
+
+class BuildStateTests(unittest.TestCase):
+    def test_green_to_green(self):
+
+        self.assertEqual(gocd.BuildStateSuccess().after(gocd.BuildStateSuccess()), gocd.Event.PASSES)
+
+    def test_red_to_green(self):
+
+        self.assertEqual(gocd.BuildStateSuccess().after(gocd.BuildStateFailure()), gocd.Event.FIXED)
+
+    def test_unknown_to_green(self):
+
+        self.assertEqual(gocd.BuildStateSuccess().after(gocd.BuildStateUnknown()), gocd.Event.FIXED)
+
+    def test_green_to_red(self):
+
+        self.assertEqual(gocd.BuildStateFailure().after(gocd.BuildStateSuccess()), gocd.Event.BREAKS)
+
+    def test_red_to_red(self):
+
+        self.assertEqual(gocd.BuildStateFailure().after(gocd.BuildStateFailure()), gocd.Event.FAILS)
+
+    def test_unknown_to_red(self):
+
+        self.assertEqual(gocd.BuildStateFailure().after(gocd.BuildStateUnknown()), gocd.Event.BREAKS)
+
+    def test_get_state_from_event_pass(self):
+
+        self.assertEqual(gocd.build_state_factory(event=gocd.Event.PASSES), gocd.BuildStateSuccess())
+
+    def test_get_state_from_event_fixed(self):
+
+        self.assertEqual(gocd.build_state_factory(event=gocd.Event.FIXED), gocd.BuildStateSuccess())
+
+    def test_get_state_from_event_fails(self):
+
+        self.assertEqual(gocd.build_state_factory(event=gocd.Event.FAILS), gocd.BuildStateFailure())
+
+    def test_get_state_from_event_breaks(self):
+
+        self.assertEqual(gocd.build_state_factory(event=gocd.Event.BREAKS), gocd.BuildStateFailure())
+
+    def test_get_state_from_event_cancelled(self):
+
+        self.assertEqual(gocd.build_state_factory(event=gocd.Event.CANCELLED), None)
+
+    def test_get_state_from_lastBuildStatus_success(self):
+
+        self.assertEqual(gocd.build_state_factory(last_build_status='Success'), gocd.BuildStateSuccess())
+
+    def test_get_state_from_lastBuildStatus_failure(self):
+
+        self.assertEqual(gocd.build_state_factory(last_build_status='Failure'), gocd.BuildStateFailure())
+
 
 if __name__ == '__main__':
     unittest.main()

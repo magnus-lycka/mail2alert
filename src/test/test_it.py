@@ -32,6 +32,31 @@ async def handle_get_pipeline_groups(request):
         content_type='application/json')
 
 
+async def handle_get_cctray(request):
+    xml = '''<?xml version="1.0" encoding="utf-8"?>
+    <Projects>
+        <Project
+            name="my-pipeline :: defaultStage"
+            activity="Building"
+            lastBuildStatus="Success"
+            lastBuildLabel="1"
+            lastBuildTime="2017-05-18T15:31:16"
+            webUrl="http://localhost:8153/go/pipelines/p1/5/defaultStage/1"
+        />
+        <Project
+            name="my-pipeline :: defaultStage :: defaultJob"
+            activity="Building"
+            lastBuildStatus="Success"
+            lastBuildLabel="1"
+            lastBuildTime="2017-05-18T15:31:16"
+            webUrl="http://localhost:8153/go/tab/build/detail/p1/5/defaultStage/1/defaultJob"
+        />
+    </Projects>'''
+    return web.Response(
+        body=xml.encode('utf-8'),
+        content_type='application/xml')
+
+
 class ServerIntegrationTests(unittest.TestCase):
     app = None
     handler = None
@@ -50,6 +75,10 @@ class ServerIntegrationTests(unittest.TestCase):
         cls.app.router.add_get(
             '/go/api/config/pipeline_groups',
             handle_get_pipeline_groups
+        )
+        cls.app.router.add_get(
+            '/go/cctray.xml',
+            handle_get_cctray
         )
         host = 'localhost'
         port = 8080

@@ -17,20 +17,26 @@ from mail2alert import plugin
 from mail2alert.config import Configuration
 
 """
-This is a mail proxy server based on Python 3 standard smtpd.PureProxy.
-By default, mail sent to it will be forwarded to a downstream mail server.
+This is a mail proxy server based on Python 3 standard
+smtpd.PureProxy. By default, mail sent to it will be
+forwarded to a downstream mail server.
 
-Managers are plugged into the workflow to read each message and possibly
-act on it. If it wants the message, they will provide (potentially) new
-values for sender, recipient and data.
-If the recipient list ends up empty, the message will not be sent by the
-email proxy. This means that the manager can drop messages or transport
-them with other mechanisms than email.
+Managers are plugged into the workflow to read each
+message and possibly act on it. If it wants the message,
+they will provide (potentially) new values for sender,
+recipient and data.
+If the recipient list ends up empty, the message will not
+be sent by the email proxy. This means that the manager
+can drop messages or transport them with other mechanisms
+than email.
 """
 
 
 def update_mail_to_from(bytes_data, rcpttos, mailfrom):
-    msg = message_from_bytes(bytes_data, policy=EmailPolicy(utf8=True, linesep='\r\n'))
+    msg = message_from_bytes(
+        bytes_data,
+        policy=EmailPolicy(utf8=True, linesep='\r\n')
+    )
 
     logging.debug('Removing To: %s', msg['To'])
     del msg['To']
@@ -65,7 +71,10 @@ class Mail2AlertProxy(Proxy):
         """
         The Proxy class had confused strings and bytes!
         """
-        logging.debug('handle_DATA got %s', envelope.content.decode('utf-8'))
+        logging.debug(
+            'handle_DATA got %s',
+            envelope.content.decode('utf-8')
+        )
         lines = envelope.content.splitlines(keepends=True)
         # Look for the last header
         i = 0
@@ -75,9 +84,16 @@ class Mail2AlertProxy(Proxy):
                 ending = line
                 break
             i += 1
-        lines.insert(i, b'X-Peer: %s%s' % (session.peer[0].encode('utf-8'), ending))
+        lines.insert(i, b'X-Peer: %s%s' % (
+            session.peer[0].encode('utf-8'),
+            ending
+        ))
         data = b''.join(lines)
-        refused = await self._adeliver(envelope.mail_from, envelope.rcpt_tos, data)
+        refused = await self._adeliver(
+            envelope.mail_from,
+            envelope.rcpt_tos,
+            data
+        )
         if refused:
             logging.info('we got some refusals: %s' % refused)
         return '250 OK'
@@ -85,7 +101,11 @@ class Mail2AlertProxy(Proxy):
     async def _adeliver(self, mailfrom, rcpttos, data):
         for manager in self.mail2alert_managers:
             if manager.wants_message(mailfrom, rcpttos, data):
-                mailfrom, rcpttos, data = await manager.process_message(mailfrom, rcpttos, data)
+                mailfrom, rcpttos, data = await manager.process_message(
+                    mailfrom,
+                    rcpttos,
+                    data
+                )
                 if rcpttos:
                     data = update_mail_to_from(data, rcpttos, mailfrom)
                 break
@@ -120,9 +140,10 @@ class Mail2AlertProxy(Proxy):
             refused = e.recipients
         except (OSError, smtplib.SMTPException) as e:
             logging.exception('got %s', e.__class__)  # We were missing %s!!!
-            # All recipients were refused.  If the exception had an associated
-            # error code, use it.  Otherwise, fake it with a non-triggering
-            # exception code.
+            # All recipients were refused.
+            # If the exception had an associated
+            # error code, use it.  Otherwise, fake it
+            # with a non-triggering exception code.
             errcode = getattr(e, 'smtp_code', -1)
             errmsg = getattr(e, 'smtp_error', 'ignore')
             for r in rcpt_tos:
@@ -143,11 +164,16 @@ async def proxy_mail():
     local_host, local_port = host_port(cnf['local-smtp'])
     remote_host, remote_port = host_port(cnf['remote-smtp'])
     managers = []
-    for manager in cnf['managers']:
-        manager_module = importlib.import_module('.' + manager['name'], plugin.__name__)
-        managers.append(
-            manager_module.Manager(manager)
+    for manager_conf in cnf['managers']:
+        manager_module = importlib.import_module(
+            '.' + manager_conf['name'], plugin.__name__
         )
+        manager = manager_module.Manager(manager_conf)
+        managers.append(
+            manager
+        )
+        if hasattr(manager, 'async_init'):
+            await manager.async_init()
     cont = SMTPUTF8Controller(
         Mail2AlertProxy(remote_host, remote_port, managers),
         hostname=local_host,
@@ -184,7 +210,10 @@ def get_managers():
     cnf = Configuration()
     managers = {}
     for manager in cnf['managers']:
-        manager_module = importlib.import_module('.' + manager['name'], plugin.__name__)
+        manager_module = importlib.import_module(
+            '.' + manager['name'],
+            plugin.__name__
+        )
         mgr = manager_module.Manager(manager)
         managers[manager['name']] = mgr
     return managers
@@ -211,5 +240,9 @@ def selftest(content_type=None):
     if content_type == 'yaml':
         noalias_dumper = yaml.dumper.SafeDumper
         noalias_dumper.ignore_aliases = lambda self, data: True
-        return yaml.dump(report, default_flow_style=False, Dumper=noalias_dumper)
+        return yaml.dump(
+            report,
+            default_flow_style=False,
+            Dumper=noalias_dumper
+        )
     return report

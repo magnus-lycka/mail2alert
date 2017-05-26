@@ -17,6 +17,7 @@ class ActionsTests(unittest.TestCase):
         act = actions.Actions(['mailto:a@b.c', 'mailtoooooo:d@e.f'])
 
         self.assertEqual(act.mailto, ['a@b.c'])
+        # noinspection PyUnresolvedReferences
         actions.logging.error.assert_called_with('Unexpected action: mailtoooooo:d@e.f')
 
 
