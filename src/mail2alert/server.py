@@ -80,12 +80,12 @@ class Mail2AlertProxy(Proxy):
         i = 0
         ending = CRLF
         for line in lines:  # pragma: nobranch
-            if NLCRE.match(line.decode('utf-8')):
+            if NLCRE.match(line):
                 ending = line
                 break
             i += 1
         lines.insert(i, b'X-Peer: %s%s' % (
-            session.peer[0].encode('utf-8'),
+            session.peer[0].encode('ascii'),
             ending
         ))
         data = b''.join(lines)
@@ -110,45 +110,11 @@ class Mail2AlertProxy(Proxy):
                     data = update_mail_to_from(data, rcpttos, mailfrom)
                 break
         if rcpttos:
-            # return super()._deliver(mailfrom, rcpttos, data)
             logging.info('Sending mail to %s', rcpttos)
-            return self.fixed_base_deliver(mailfrom, rcpttos, data)
+            return self._deliver(mailfrom, rcpttos, data)
         else:
             logging.info('Dropping email.')
             return rcpttos
-
-    def fixed_base_deliver(self, mail_from, rcpt_tos, data):
-        """
-        Bug in log.exception in Proxy._deliver
-        """
-        refused = {}
-        try:
-            s = smtplib.SMTP()
-            s.connect(self._hostname, self._port)
-            try:
-                logging.debug(
-                    'smtplib.SMTP().sendmail(%s, %s, data) with...',
-                    mail_from,
-                    rcpt_tos
-                )
-                logging.debug('Data = %r', data)
-                refused = s.sendmail(mail_from, rcpt_tos, data)
-            finally:
-                s.quit()
-        except smtplib.SMTPRecipientsRefused as e:
-            logging.info('got SMTPRecipientsRefused')
-            refused = e.recipients
-        except (OSError, smtplib.SMTPException) as e:
-            logging.exception('got %s', e.__class__)  # We were missing %s!!!
-            # All recipients were refused.
-            # If the exception had an associated
-            # error code, use it.  Otherwise, fake it
-            # with a non-triggering exception code.
-            errcode = getattr(e, 'smtp_code', -1)
-            errmsg = getattr(e, 'smtp_error', 'ignore')
-            for r in rcpt_tos:
-                refused[r] = (errcode, errmsg)
-        return refused
 
 
 def host_port(text, default_port=25):

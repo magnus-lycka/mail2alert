@@ -27,6 +27,7 @@ class Manager:
     def rule_funcs(self):
         return {'mail': Mail()}
 
+    # noinspection PyUnusedLocal
     def wants_message(self, mail_from, rcpt_tos, content):
         """
         Determine whether the manager is interested in a certain message.

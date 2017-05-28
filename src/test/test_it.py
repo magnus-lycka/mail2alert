@@ -18,6 +18,7 @@ from time import sleep
 from mail2alert import server
 
 
+# noinspection PyUnusedLocal
 async def handle_get_pipeline_groups(request):
     pipeline_groups = [
         {
@@ -32,6 +33,7 @@ async def handle_get_pipeline_groups(request):
         content_type='application/json')
 
 
+# noinspection PyUnusedLocal
 async def handle_get_cctray(request):
     xml = '''<?xml version="1.0" encoding="utf-8"?>
     <Projects>

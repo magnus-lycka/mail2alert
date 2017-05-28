@@ -194,8 +194,8 @@ from job progress emails, it will extract the `pipeline` name
 and `event` from the subject.
 
 It has the following rule functions:
- - pipelines.all
-   - all pipelines will match.
+ - pipelines.any
+   - any pipelines will match.
  - pipelines.in_group
    - Takes a group name as argument. Will match if name of
      pipeline in message matches is in the pipeline group

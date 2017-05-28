@@ -67,7 +67,7 @@ class GocdPipelinesTests(unittest.TestCase):
     def test_filter_all(self):
         pipelines = gocd.Pipelines(self.pipeline_groups)
 
-        rule_filter = pipelines.all()
+        rule_filter = pipelines.any()
 
         self.assertTrue(rule_filter(dict(pipeline='b-build')))
         self.assertTrue(rule_filter(dict(pipeline='b-test')))
@@ -279,7 +279,7 @@ class ManagerTests(unittest.TestCase):
                 'actions': ['mailto:nosy@example.com'],
                 'filter': {
                     'events': ['FAILS', 'CANCELLED'],
-                    'function': 'pipelines.all',
+                    'function': 'pipelines.any',
                 }
             },
         ]
@@ -345,22 +345,22 @@ class ManagerTests(unittest.TestCase):
         self.maxDiff = 10000
         self.assertEqual(actual, expected)
 
-    def test_process_message(self):
+    def test_process_message_edge_detect(self):
         """
         test_process_message
         If previous state was successful (fixed or passed) and the current
-        state is a failure, it's a BREAKS, eveen if the message says "failed"
+        state is a failure, it's a BREAKS, even if the message says "failed"
         instead of "is broken".
         Same thing other way: "passed" => "is fixed" if previous was a fail.
         """
 
-        async def check_process_message(future):
+        async def check_process_message(process_message_future):
             rules = [
                 {
                     'actions': ['mailto:nosy@example.com'],
                     'filter': {
                         'events': ['BREAKS'],
-                        'function': 'pipelines.all',
+                        'function': 'pipelines.any',
                     }
                 },
             ]
@@ -375,14 +375,16 @@ class ManagerTests(unittest.TestCase):
             msg['To'] = rcpt_tos
             msg.set_content('test')
 
-            future.set_result(await mgr.process_message(mail_from, rcpt_tos, msg.as_bytes()))
+            process_message_future.set_result(
+                await mgr.process_message(mail_from, rcpt_tos, msg.as_bytes())
+            )
 
         loop = asyncio.get_event_loop()
         future = asyncio.Future()
         asyncio.ensure_future(check_process_message(future))
         loop.run_until_complete(future)
-
         sender, receiver, body = future.result()
+
         self.assertEqual('sender@example.com', sender)
         self.assertEqual(['nosy@example.com'], receiver)
         self.assertIn(b'failed', body)

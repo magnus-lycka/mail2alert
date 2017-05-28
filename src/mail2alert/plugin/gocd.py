@@ -146,6 +146,7 @@ class Manager:
                 when[pipeline_name] = timestamp
                 logging.debug('Set state for %s to %s', pipeline_name, state)
 
+    # noinspection PyUnusedLocal
     def wants_message(self, mail_from, rcpt_tos, content):
         """
         Determine whether the manager is interested in a certain message.
@@ -273,7 +274,8 @@ class BuildState:
 
 
 class BuildStateSuccess(BuildState):
-    def after(self, old_state):
+    @staticmethod
+    def after(old_state):
         return {
             BuildStateSuccess: Event.PASSES,
             BuildStateFailure: Event.FIXED,
@@ -282,7 +284,8 @@ class BuildStateSuccess(BuildState):
 
 
 class BuildStateFailure(BuildState):
-    def after(self, old_state):
+    @staticmethod
+    def after(old_state):
         return {
             BuildStateSuccess: Event.BREAKS,
             BuildStateFailure: Event.FAILS,
@@ -331,8 +334,10 @@ class Pipelines:
             return []
 
     @staticmethod
-    def all():
+    def any():
         return lambda msg: True
+
+    all = any  # For backwards compatibility. Deprecated.
 
     def in_group(self, group):
         def in_group_filter(msg):

@@ -1,4 +1,4 @@
-aiohttp
+aiohttp>=2.1
 aiomonitor
-aiosmtpd
-pyyaml
+aiosmtpd>=1.0
+pyyaml>=3.12

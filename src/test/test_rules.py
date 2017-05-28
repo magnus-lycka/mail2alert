@@ -1,7 +1,7 @@
 import unittest
 
 import mail2alert.rules
-    
+
 
 class RuleTests(unittest.TestCase):
     def test_make_rule(self):
@@ -70,6 +70,7 @@ class RuleTests(unittest.TestCase):
 
         self.assertEqual([], rule.check(msg, functions))
 
+    # noinspection PyUnusedLocal
     @staticmethod
     def _helper_for_test_basic_check(*args):
         def f(msg):
