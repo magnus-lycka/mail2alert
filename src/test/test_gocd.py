@@ -426,7 +426,7 @@ class ManagerTests(unittest.TestCase):
   />
   <Project name="p2 :: test"
     activity="Sleeping"
-    lastBuildStatus="Success"
+    lastBuildStatus="Failure"
     lastBuildLabel="6"
     lastBuildTime="2017-05-24T10:20:57"
     webUrl="http://go.pagero.local/go/pipelines/p2/6/test/1"
@@ -453,7 +453,7 @@ class ManagerTests(unittest.TestCase):
 
         self.assertEqual(mgr.previous_pipeline_state['p1/build'], gocd.BuildStateSuccess())
         self.assertEqual(mgr.previous_pipeline_state['p2/build'], gocd.BuildStateSuccess())
-        self.assertEqual(mgr.previous_pipeline_state['p2/test'], gocd.BuildStateSuccess())
+        self.assertEqual(mgr.previous_pipeline_state['p2/test'], gocd.BuildStateFailure())
 
 
 class MessageTests(unittest.TestCase):
