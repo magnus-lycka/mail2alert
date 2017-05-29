@@ -294,7 +294,9 @@ class BuildStateFailure(BuildState):
 
 
 class BuildStateUnknown(BuildState):
-    pass
+    @staticmethod
+    def after(old_state):
+        pass
 
 
 def build_state_factory(*, event=None, last_build_status=None):
@@ -304,7 +306,7 @@ def build_state_factory(*, event=None, last_build_status=None):
             Event.FIXED: BuildStateSuccess,
             Event.BREAKS: BuildStateFailure,
             Event.FAILS: BuildStateFailure,
-            Event.CANCELLED: None,
+            Event.CANCELLED: BuildStateUnknown,
         }[event]
     elif last_build_status:
         state = {
@@ -372,29 +374,47 @@ class Message(mail.Message):
     }
     pattern = re.compile(r'Stage \[([^/]+)/[^/]+/[^/]+/[^/]+\] (.+)$')
 
-    def __init__(self, content, previous_states=defaultdict(BuildStateUnknown)):
+    def __init__(self, content, previous_states=None):
+        if previous_states is None:
+            previous_states = defaultdict(BuildStateUnknown)
         super().__init__(content)
         mo = self.pattern.search(self['subject'])
-        if mo:
-            self['pipeline'] = mo.group(1)
-            event = self.event_map.get(mo.group(2).strip())
-            if not event:
-                logging.warning(
-                    'Unexpected event "%s" in %r',
-                    mo.group(2),
-                    content
-                )
-            else:
-                logging.debug('Got %s' % event)
-                if not previous_states[self['pipeline']] == BuildStateUnknown():
-                    expected_event = build_state_factory(event=event).after(previous_states[self['pipeline']])
-                    if expected_event != event:
-                        logging.warning(
-                            'Got %s instead of %s expected due to history. Changing!'
-                        )
-                        event = expected_event
-            self['event'] = event
-        else:
+
+        if not mo:
             logging.warning('Unable to parse message: %r' % content)
             self['pipeline'] = None
             self['event'] = None
+            return
+
+        self['pipeline'] = mo.group(1)
+        event = self.event_map.get(mo.group(2).strip())
+
+        if not event:
+            logging.warning('No event found in %r', content)
+            self['event'] = None
+            return
+
+        logging.debug('Got %s' % event)
+        expected_event = build_state_factory(event=event).after(previous_states[self['pipeline']])
+        if previous_states[self['pipeline']] == BuildStateUnknown():
+            pass
+        elif expected_event == event:
+            pass
+        elif expected_event in (Event.FIXED, Event.BREAKS):
+            logging.warning(
+                'Got %s instead of %s expected due to history. Changing!',
+                event,
+                expected_event
+            )
+            event = expected_event
+        else:
+            logging.warning(
+                'Got %s instead of %s expected due to history. Keep that!',
+                event,
+                expected_event
+            )
+
+        self['event'] = event
+
+        if event:
+            previous_states[self['pipeline']] = build_state_factory(event=event)

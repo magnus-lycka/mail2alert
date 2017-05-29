@@ -444,13 +444,46 @@ class MessageTests(unittest.TestCase):
         self.assertEqual(gocd.Event.FAILS, msg['event'])
         self.assertEqual('my-pipeline', msg['pipeline'])
 
-    def test_parse_event_mismatching_history(self):
+    def test_parse_event_mismatching_history_failed_breaks(self):
         bmail = b'Subject: Stage [my_pipeline/2/stage/1] \r\n failed\r\n\r\n'
 
-        msg = gocd.Message(bmail, previous_states=dict(my_pipeline=gocd.BuildStateSuccess()))
+        previous_states = dict(my_pipeline=gocd.BuildStateSuccess())
+        msg = gocd.Message(bmail, previous_states=previous_states)
 
         self.assertEqual(gocd.Event.BREAKS, msg['event'])
         self.assertEqual('my_pipeline', msg['pipeline'])
+        self.assertEqual(previous_states['my_pipeline'], gocd.BuildStateFailure())
+
+    def test_parse_event_mismatching_history_breaks_failed(self):
+        bmail = b'Subject: Stage [my_pipeline/2/stage/1] \r\n is broken\r\n\r\n'
+
+        previous_states = dict(my_pipeline=gocd.BuildStateFailure())
+        msg = gocd.Message(bmail, previous_states=previous_states)
+
+        self.assertEqual(gocd.Event.BREAKS, msg['event'])
+        self.assertEqual('my_pipeline', msg['pipeline'])
+        self.assertEqual(previous_states['my_pipeline'], gocd.BuildStateFailure())
+
+
+    def test_parse_event_mismatching_history_passed_fixed(self):
+        bmail = b'Subject: Stage [my_pipeline/2/stage/1] \r\n passed\r\n\r\n'
+
+        previous_states = dict(my_pipeline=gocd.BuildStateFailure())
+        msg = gocd.Message(bmail, previous_states=previous_states)
+
+        self.assertEqual(gocd.Event.FIXED, msg['event'])
+        self.assertEqual('my_pipeline', msg['pipeline'])
+        self.assertEqual(previous_states['my_pipeline'], gocd.BuildStateSuccess())
+
+    def test_parse_event_mismatching_history_fixed_passed(self):
+        bmail = b'Subject: Stage [my_pipeline/2/stage/1] \r\n is fixed\r\n\r\n'
+
+        previous_states = dict(my_pipeline=gocd.BuildStateSuccess())
+        msg = gocd.Message(bmail, previous_states=previous_states)
+
+        self.assertEqual(gocd.Event.FIXED, msg['event'])
+        self.assertEqual('my_pipeline', msg['pipeline'])
+        self.assertEqual(previous_states['my_pipeline'], gocd.BuildStateSuccess())
 
     def test_parse_unexpected(self):
         mail = EmailMessage()
@@ -484,8 +517,10 @@ class BuildStateTests(unittest.TestCase):
         self.assertEqual(gocd.BuildStateFailure().after(gocd.BuildStateFailure()), gocd.Event.FAILS)
 
     def test_unknown_to_red(self):
-
         self.assertEqual(gocd.BuildStateFailure().after(gocd.BuildStateUnknown()), gocd.Event.BREAKS)
+
+    def test_something_to_unknown(self):
+        self.assertEqual(gocd.BuildStateUnknown().after(gocd.BuildStateUnknown()), None)
 
     def test_get_state_from_event_pass(self):
 
@@ -505,7 +540,7 @@ class BuildStateTests(unittest.TestCase):
 
     def test_get_state_from_event_cancelled(self):
 
-        self.assertEqual(gocd.build_state_factory(event=gocd.Event.CANCELLED), None)
+        self.assertEqual(gocd.build_state_factory(event=gocd.Event.CANCELLED), gocd.BuildStateUnknown())
 
     def test_get_state_from_lastBuildStatus_success(self):
 
