@@ -2,6 +2,7 @@ import asyncio
 import unittest
 from collections import defaultdict
 from email.message import EmailMessage
+from xml.etree import ElementTree as Et
 
 from mail2alert.plugin import gocd
 
@@ -389,6 +390,71 @@ class ManagerTests(unittest.TestCase):
         self.assertEqual(['nosy@example.com'], receiver)
         self.assertIn(b'failed', body)
 
+    def test_parse_cctray(self):
+        xml = """<?xml version="1.0" encoding="utf-8"?>
+<Projects>
+  <Project
+    name="p1 :: build"
+    activity="Sleeping"
+    lastBuildStatus="Success"
+    lastBuildLabel="22"
+    lastBuildTime="2017-05-29T13:27:55"
+    webUrl="http://go.pagero.local/go/pipelines/p1/22/build/1"
+  />
+  <Project
+    name="p1 :: build :: defaultJob"
+    activity="Sleeping"
+    lastBuildStatus="Success"
+    lastBuildLabel="22"
+    lastBuildTime="2017-05-29T13:27:55"
+    webUrl="http://go.pagero.local/go/tab/build/detail/p1/22/build/1/defaultJob"
+  />
+  <Project
+    name="p2 :: build"
+    activity="Sleeping" lastBuildStatus="Success"
+    lastBuildLabel="6"
+    lastBuildTime="2017-05-24T10:11:07"
+    webUrl="http://go.pagero.local/go/pipelines/p2/6/build/1"
+  />
+  <Project
+    name="p2 :: build :: defaultJob"
+    activity="Sleeping"
+    lastBuildStatus="Success"
+    lastBuildLabel="6"
+    lastBuildTime="2017-05-24T10:11:07"
+    webUrl="http://go.pagero.local/go/tab/build/detail/p2/6/build/1/defaultJob"
+  />
+  <Project name="p2 :: test"
+    activity="Sleeping"
+    lastBuildStatus="Success"
+    lastBuildLabel="6"
+    lastBuildTime="2017-05-24T10:20:57"
+    webUrl="http://go.pagero.local/go/pipelines/p2/6/test/1"
+  />
+  <Project
+    name="p2 :: test :: EJB_Integration_Tests"
+    activity="Sleeping"
+    lastBuildStatus="Success"
+    lastBuildLabel="6"
+    lastBuildTime="2017-05-24T10:20:57"
+    webUrl="http://go.pagero.local/go/tab/build/detail/p2/6/test/1/EJB_Integration_Tests"
+  />
+  <Project
+    name="p2 :: test :: REST-API_Integration_tests"
+    activity="Sleeping"
+    lastBuildStatus="Success"
+    lastBuildLabel="6"
+    lastBuildTime="2017-05-24T10:16:16"
+    webUrl="http://go.pagero.local/go/tab/build/detail/p2/6/test/1/REST-API_Integration_tests"
+  />
+</Projects>"""
+        mgr = gocd.Manager({})
+        mgr.parse_cctray(Et.fromstring(xml))
+
+        self.assertEqual(mgr.previous_pipeline_state['p1/build'], gocd.BuildStateSuccess())
+        self.assertEqual(mgr.previous_pipeline_state['p2/build'], gocd.BuildStateSuccess())
+        self.assertEqual(mgr.previous_pipeline_state['p2/test'], gocd.BuildStateSuccess())
+
 
 class MessageTests(unittest.TestCase):
     def test_parse_fixed_pipeline(self):
@@ -447,43 +513,43 @@ class MessageTests(unittest.TestCase):
     def test_parse_event_mismatching_history_failed_breaks(self):
         bmail = b'Subject: Stage [my_pipeline/2/stage/1] \r\n failed\r\n\r\n'
 
-        previous_states = dict(my_pipeline=gocd.BuildStateSuccess())
+        previous_states = {'my_pipeline/stage': gocd.BuildStateSuccess()}
         msg = gocd.Message(bmail, previous_states=previous_states)
 
         self.assertEqual(gocd.Event.BREAKS, msg['event'])
         self.assertEqual('my_pipeline', msg['pipeline'])
-        self.assertEqual(previous_states['my_pipeline'], gocd.BuildStateFailure())
+        self.assertEqual(previous_states['my_pipeline/stage'], gocd.BuildStateFailure())
 
     def test_parse_event_mismatching_history_breaks_failed(self):
         bmail = b'Subject: Stage [my_pipeline/2/stage/1] \r\n is broken\r\n\r\n'
 
-        previous_states = dict(my_pipeline=gocd.BuildStateFailure())
+        previous_states = {'my_pipeline/stage': gocd.BuildStateFailure()}
         msg = gocd.Message(bmail, previous_states=previous_states)
 
         self.assertEqual(gocd.Event.BREAKS, msg['event'])
         self.assertEqual('my_pipeline', msg['pipeline'])
-        self.assertEqual(previous_states['my_pipeline'], gocd.BuildStateFailure())
+        self.assertEqual(previous_states['my_pipeline/stage'], gocd.BuildStateFailure())
 
 
     def test_parse_event_mismatching_history_passed_fixed(self):
         bmail = b'Subject: Stage [my_pipeline/2/stage/1] \r\n passed\r\n\r\n'
 
-        previous_states = dict(my_pipeline=gocd.BuildStateFailure())
+        previous_states = {'my_pipeline/stage': gocd.BuildStateFailure()}
         msg = gocd.Message(bmail, previous_states=previous_states)
 
         self.assertEqual(gocd.Event.FIXED, msg['event'])
         self.assertEqual('my_pipeline', msg['pipeline'])
-        self.assertEqual(previous_states['my_pipeline'], gocd.BuildStateSuccess())
+        self.assertEqual(previous_states['my_pipeline/stage'], gocd.BuildStateSuccess())
 
     def test_parse_event_mismatching_history_fixed_passed(self):
         bmail = b'Subject: Stage [my_pipeline/2/stage/1] \r\n is fixed\r\n\r\n'
 
-        previous_states = dict(my_pipeline=gocd.BuildStateSuccess())
+        previous_states = {'my_pipeline/stage': gocd.BuildStateSuccess()}
         msg = gocd.Message(bmail, previous_states=previous_states)
 
         self.assertEqual(gocd.Event.FIXED, msg['event'])
         self.assertEqual('my_pipeline', msg['pipeline'])
-        self.assertEqual(previous_states['my_pipeline'], gocd.BuildStateSuccess())
+        self.assertEqual(previous_states['my_pipeline/stage'], gocd.BuildStateSuccess())
 
     def test_parse_unexpected(self):
         mail = EmailMessage()

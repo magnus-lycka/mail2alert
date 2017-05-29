@@ -138,13 +138,18 @@ class Manager:
         when = defaultdict(str)
         for project in tree.findall('Project'):
             name_parts = [n.strip() for n in project.attrib['name'].split('::')]
+            if len(name_parts) > 2:
+                # Never mind job level
+                continue
             pipeline_name = name_parts[0]
+            stage_name = name_parts[1]
             timestamp = project.attrib['lastBuildTime']
+            what = "{}/{}".format(pipeline_name, stage_name)
             if timestamp > when[pipeline_name]:
                 state = build_state_factory(last_build_status=project.attrib['lastBuildStatus'])
-                self.previous_pipeline_state[pipeline_name] = state
-                when[pipeline_name] = timestamp
-                logging.debug('Set state for %s to %s', pipeline_name, state)
+                self.previous_pipeline_state[what] = state
+                when[what] = timestamp
+                logging.debug('Set state for %s to %s', what, state)
 
     # noinspection PyUnusedLocal
     def wants_message(self, mail_from, rcpt_tos, content):
@@ -372,7 +377,7 @@ class Message(mail.Message):
         'passed': Event.PASSES,
         'failed': Event.FAILS,
     }
-    pattern = re.compile(r'Stage \[([^/]+)/[^/]+/[^/]+/[^/]+\] (.+)$')
+    pattern = re.compile(r'Stage \[([^/]+)/[^/]+/([^/]+)/[^/]+\] (.+)$')
 
     def __init__(self, content, previous_states=None):
         if previous_states is None:
@@ -387,7 +392,8 @@ class Message(mail.Message):
             return
 
         self['pipeline'] = mo.group(1)
-        event = self.event_map.get(mo.group(2).strip())
+        stage = mo.group(2)
+        event = self.event_map.get(mo.group(3).strip())
 
         if not event:
             logging.warning('No event found in %r', content)
@@ -395,8 +401,10 @@ class Message(mail.Message):
             return
 
         logging.debug('Got %s' % event)
-        expected_event = build_state_factory(event=event).after(previous_states[self['pipeline']])
-        if previous_states[self['pipeline']] == BuildStateUnknown():
+
+        pipeline_stage = "{}/{}".format(self['pipeline'], stage)
+        expected_event = build_state_factory(event=event).after(previous_states[pipeline_stage])
+        if previous_states[pipeline_stage] == BuildStateUnknown():
             pass
         elif expected_event == event:
             pass
@@ -417,4 +425,4 @@ class Message(mail.Message):
         self['event'] = event
 
         if event:
-            previous_states[self['pipeline']] = build_state_factory(event=event)
+            previous_states[pipeline_stage] = build_state_factory(event=event)
