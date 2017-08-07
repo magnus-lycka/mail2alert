@@ -142,7 +142,7 @@ interface
         def wants_message(self, mail_from, rcpt_tos, binary_content):
             return boolean  # True==we want this email
 
-        async def process_message(self, mail_from, rcpt_tos, binary_content):
+        async def process_message(self, mail_from, recipients, binary_content):
             """
             Use the rules to determine whether we want the message,
             and how to modify any of the arguments before returning
