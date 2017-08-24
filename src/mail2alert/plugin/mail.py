@@ -3,7 +3,9 @@ from email import message_from_bytes
 from email.policy import EmailPolicy
 
 from mail2alert.actions import Actions
+from mail2alert.common import AlertLevels
 from mail2alert.rules import Rule
+from mail2alert.slackbot import SlackMessage
 
 
 class Manager:
@@ -24,7 +26,7 @@ class Manager:
             yield MailRule(rule)
 
     @property
-    def rule_funcs(self):
+    async def rule_funcs(self):
         return {'mail': Mail()}
 
     # noinspection PyUnusedLocal
@@ -35,7 +37,7 @@ class Manager:
         wanted = self.conf['messages-we-want']
         wanted_to = wanted.get('to')
         wanted_from = wanted.get('from')
-        logging.debug('We vant to: %s or from: %s', wanted_to, wanted_from)
+        logging.debug('We want to: %s or from: %s', wanted_to, wanted_from)
         logging.debug('We got to: %s and from: %s', rcpt_tos, mail_from)
         if wanted_to:
             return wanted_to in rcpt_tos
@@ -46,13 +48,25 @@ class Manager:
         logging.debug('process_message("%s", %s, %s)',
                       mail_from, rcpt_tos, binary_content)
         recipients = []
-        msg = Message(binary_content)
+        msg = self.get_message(binary_content)
         logging.info('Extracted message %s', msg)
         for rule in self.rules(self.conf['rules']):
             logging.debug('Check %s', rule)
-            actions = Actions(rule.check(msg, self.rule_funcs))
+            actions = Actions(rule.check(msg, await self.rule_funcs))
             recipients.extend(actions.mailto)
+            if actions.slack:
+                await self.notify_slack(actions.slack, msg)
         return mail_from, recipients, binary_content
+
+    @staticmethod
+    async def notify_slack(channels, msg):
+        sm = SlackMessage(msg)
+        for channel in channels:
+            sm.post(channel)
+
+    @staticmethod
+    def get_message(content):
+        return Message(content)
 
     async def test(self):
         pass
@@ -63,7 +77,7 @@ class Mail:
     def in_subject(*words):
         def words_in_subject(msg):
             return all(
-                word.lower() in msg['subject'].lower()
+                word.lower() in msg['Subject'].lower()
                 for word in words
             )
 
@@ -71,14 +85,23 @@ class Mail:
 
 
 class Message(dict):
+    alert_level = AlertLevels.PRIMARY
+
     def __init__(self, content):
         super().__init__()
         msg = message_from_bytes(
             content,
             policy=EmailPolicy(utf8=True, linesep='\r\n')
         )
-        self['subject'] = msg['Subject']
-        logging.info('Message with subject: %s', self['subject'])
+        self._msg = msg
+        logging.info('Message with subject: %s', self['Subject'])
+
+    def __missing__(self, item):
+        return self._msg[item]
+
+    @property
+    def body(self):
+        return self._msg.get_content()
 
 
 class MailRule(Rule):

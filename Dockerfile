@@ -1,6 +1,6 @@
 FROM python:3.6-slim
 
-LABEL maintainer "magnus@thinkware.se, phoenix@pagero.com"
+LABEL maintainer = "magnus@thinkware.se, phoenix@pagero.com"
 
 RUN apt-get -y update && apt-get -y install build-essential
 WORKDIR /usr/src/mail2alert

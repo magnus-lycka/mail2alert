@@ -3,7 +3,6 @@ import asyncio
 import importlib
 import logging
 import os
-import smtplib
 from email import message_from_bytes
 from email.policy import EmailPolicy
 

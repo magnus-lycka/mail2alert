@@ -1,6 +1,7 @@
 ---
 local-smtp: localhost:1025
 remote-smtp: localhost:8025
+slack-token: $SLACK_TOKEN
 managers:
   - name: gocd
     url: http://localhost:8080/go

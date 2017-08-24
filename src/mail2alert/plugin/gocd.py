@@ -9,8 +9,8 @@ from xml.etree import ElementTree as Et
 import aiohttp
 
 from mail2alert.plugin import mail
-from ..actions import Actions
-from ..rules import Rule
+from mail2alert.rules import Rule
+from mail2alert.common import AlertLevels
 
 
 async def get_json_url(session, url):
@@ -36,7 +36,7 @@ async def get_xml_url(session, url):
                 logging.error(response)
 
 
-class Manager:
+class Manager(mail.Manager):
     """
     gocd.Manager objects are handed mail messages.
 
@@ -151,35 +151,13 @@ class Manager:
                 when[what] = timestamp
                 logging.debug('Set state for %s to %s', what, state)
 
-    # noinspection PyUnusedLocal
-    def wants_message(self, mail_from, rcpt_tos, content):
-        """
-        Determine whether the manager is interested in a certain message.
-        """
-        wanted = self.conf['messages-we-want']
-        wanted_to = wanted.get('to')
-        wanted_from = wanted.get('from')
-        logging.debug('We want to: %s or from: %s', wanted_to, wanted_from)
-        logging.debug('We got to: %s and from: %s', rcpt_tos, mail_from)
-        if wanted_to:
-            return wanted_to in rcpt_tos
-        if wanted_from:
-            return wanted_from == mail_from
+    @property
+    async def rule_funcs(self):
+        return {'pipelines': Pipelines(await self.pipeline_groups)}
 
-    async def process_message(self, mail_from, rcpt_tos, binary_content):
-        logging.debug('process_message("%s", %s, %s)',
-                      mail_from, rcpt_tos, binary_content)
-        recipients = []
-        msg = Message(binary_content, previous_states=self.previous_pipeline_state)
-        logging.info('Extracted message %s', msg)
-        for rule in self.rules(self.conf['rules']):
-            logging.debug('Check %s', rule)
-            rule_funcs = {
-                'pipelines': Pipelines(await self.pipeline_groups),
-            }
-            actions = Actions(rule.check(msg, rule_funcs))
-            recipients.extend(actions.mailto)
-        return mail_from, recipients, binary_content
+    # noinspection PyMethodOverriding
+    def get_message(self, content):
+        return Message(content, previous_states=self.previous_pipeline_state)
 
     async def test(self):
         """
@@ -383,7 +361,7 @@ class Message(mail.Message):
         if previous_states is None:
             previous_states = defaultdict(BuildStateUnknown)
         super().__init__(content)
-        mo = self.pattern.search(self['subject'])
+        mo = self.pattern.search(self['Subject'])
 
         if not mo:
             logging.warning('Unable to parse message: %r' % content)
@@ -426,3 +404,12 @@ class Message(mail.Message):
 
         if event:
             previous_states[pipeline_stage] = build_state_factory(event=event)
+            self.set_alert_level()
+
+    def set_alert_level(self):
+        if self['event'] in (Event.BREAKS, Event.FAILS):
+            self.alert_level = AlertLevels.DANGER
+        elif self['event'] in (Event.PASSES, Event.FIXED):
+            self.alert_level = AlertLevels.SUCCESS
+        elif self['event'] == Event.CANCELLED:
+            self.alert_level = AlertLevels.WARNING
