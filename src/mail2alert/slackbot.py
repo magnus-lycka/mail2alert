@@ -12,7 +12,7 @@ class SlackMessage:
 
     @property
     def text(self):
-        return "Message from %s" % self.original.get('From')
+        return "Message from: %s" % self.original.get('From')
 
     @property
     def attachment(self):

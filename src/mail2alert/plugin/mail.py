@@ -98,6 +98,12 @@ class Message(dict):
     def __missing__(self, item):
         return self._msg[item]
 
+    def get(self, item, default=None):
+        try:
+            return self[item]
+        except KeyError:
+            return default
+
     @property
     def body(self):
         return self._msg.get_content()

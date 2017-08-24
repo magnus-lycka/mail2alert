@@ -16,7 +16,7 @@ class SlackMessageTests(unittest.TestCase):
             'color': '#4ABCF9'
         }
 
-        self.assertEqual('Message from a@b', sm.text)
+        self.assertEqual('Message from: a@b', sm.text)
         self.assertEqual(attachment, sm.attachment)
 
 

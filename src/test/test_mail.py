@@ -17,7 +17,7 @@ class MailMessage(unittest.TestCase):
         msg['extra'] = 'extra'
 
         self.assertEqual(msg['Subject'], email['Subject'])
-        self.assertEqual(msg['From'], email['From'])
+        self.assertEqual(msg.get('From'), email['From'])
         self.assertEqual(msg['To'], 'Override To')
         self.assertEqual(msg['extra'], 'extra')
         self.assertEqual(msg.body, 'body body body.\n')
