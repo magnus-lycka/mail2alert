@@ -61,8 +61,7 @@ class Manager:
     @staticmethod
     async def notify_slack(channels, msg):
         sm = SlackMessage(msg)
-        for channel in channels:
-            await sm.post(channel)
+        await sm.post(channels)
 
     @staticmethod
     def get_message(content):

@@ -47,4 +47,5 @@ class SlackMessage:
                         attachments=[self.attachment]
                     )
                 except SlackerError as error:
-                    logging.error("SlackMessage.post: %s", error)
+                    logging.error("SlackMessage.post: error=%s", error)
+                    logging.error("SlackMessage.post: channel=%s", channel)
