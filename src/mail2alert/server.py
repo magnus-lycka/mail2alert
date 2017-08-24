@@ -7,7 +7,6 @@ from email import message_from_bytes
 from email.policy import EmailPolicy
 
 import yaml
-import aiomonitor
 from aiosmtpd.smtp import SMTP
 from aiosmtpd.controller import Controller
 from aiosmtpd.handlers import Proxy, CRLF, NLCRE
@@ -164,9 +163,7 @@ def main(loglevel=None):
     loop = asyncio.get_event_loop()
     loop.create_task(proxy_mail())
     try:
-        with aiomonitor.start_monitor(loop=loop):
-            logging.info("Now you can connect with: nc localhost 50101")
-            loop.run_forever()
+        loop.run_forever()
     except KeyboardInterrupt:
         logging.info('Got KeyboardInterrupt')
 

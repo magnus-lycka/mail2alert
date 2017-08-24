@@ -1,5 +1,4 @@
 aioslacker
 aiohttp>=2.1
-aiomonitor
 aiosmtpd>=1.0
 pyyaml>=3.12
