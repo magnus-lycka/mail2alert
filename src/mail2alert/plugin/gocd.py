@@ -46,8 +46,7 @@ class Manager(mail.Manager):
     """
 
     def __init__(self, conf):
-        logging.info('Started %s', self.__class__)
-        self.conf = conf
+        super().__init__(conf)
         self._pipeline_groups = None
         self._pipeline_groups_time = 0
         # None is a valid value. I use NotImplemented as not set.

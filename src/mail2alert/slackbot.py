@@ -41,6 +41,7 @@ class SlackMessage:
         async with Slacker(token) as slack:
             for channel in channels:
                 try:
+                    logging.info("SlackMessage.post to %s", channel)
                     await slack.chat.post_message(
                         channel,
                         text=self.text,

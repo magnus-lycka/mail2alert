@@ -530,7 +530,6 @@ class MessageTests(unittest.TestCase):
         self.assertEqual('my_pipeline', msg['pipeline'])
         self.assertEqual(previous_states['my_pipeline/stage'], gocd.BuildStateFailure())
 
-
     def test_parse_event_mismatching_history_passed_fixed(self):
         bmail = b'Subject: Stage [my_pipeline/2/stage/1] \r\n passed\r\n\r\n'
 
@@ -563,23 +562,18 @@ class MessageTests(unittest.TestCase):
 
 class BuildStateTests(unittest.TestCase):
     def test_green_to_green(self):
-
         self.assertEqual(gocd.BuildStateSuccess().after(gocd.BuildStateSuccess()), gocd.Event.PASSES)
 
     def test_red_to_green(self):
-
         self.assertEqual(gocd.BuildStateSuccess().after(gocd.BuildStateFailure()), gocd.Event.FIXED)
 
     def test_unknown_to_green(self):
-
         self.assertEqual(gocd.BuildStateSuccess().after(gocd.BuildStateUnknown()), gocd.Event.FIXED)
 
     def test_green_to_red(self):
-
         self.assertEqual(gocd.BuildStateFailure().after(gocd.BuildStateSuccess()), gocd.Event.BREAKS)
 
     def test_red_to_red(self):
-
         self.assertEqual(gocd.BuildStateFailure().after(gocd.BuildStateFailure()), gocd.Event.FAILS)
 
     def test_unknown_to_red(self):
@@ -589,31 +583,24 @@ class BuildStateTests(unittest.TestCase):
         self.assertEqual(gocd.BuildStateUnknown().after(gocd.BuildStateUnknown()), None)
 
     def test_get_state_from_event_pass(self):
-
         self.assertEqual(gocd.build_state_factory(event=gocd.Event.PASSES), gocd.BuildStateSuccess())
 
     def test_get_state_from_event_fixed(self):
-
         self.assertEqual(gocd.build_state_factory(event=gocd.Event.FIXED), gocd.BuildStateSuccess())
 
     def test_get_state_from_event_fails(self):
-
         self.assertEqual(gocd.build_state_factory(event=gocd.Event.FAILS), gocd.BuildStateFailure())
 
     def test_get_state_from_event_breaks(self):
-
         self.assertEqual(gocd.build_state_factory(event=gocd.Event.BREAKS), gocd.BuildStateFailure())
 
     def test_get_state_from_event_cancelled(self):
-
         self.assertEqual(gocd.build_state_factory(event=gocd.Event.CANCELLED), gocd.BuildStateUnknown())
 
     def test_get_state_from_lastBuildStatus_success(self):
-
         self.assertEqual(gocd.build_state_factory(last_build_status='Success'), gocd.BuildStateSuccess())
 
     def test_get_state_from_lastBuildStatus_failure(self):
-
         self.assertEqual(gocd.build_state_factory(last_build_status='Failure'), gocd.BuildStateFailure())
 
 
