@@ -43,16 +43,13 @@ class SlackMessage:
             AlertLevels.DARK: '#666666',
         }[self.original.alert_level]
 
-    async def post(self, channel_styles):
+    async def post(self, slack_actions):
         token = Configuration()['slack-token']
 
         async with Slacker(token) as slack:
-            for channel_style in channel_styles:
-                channel = channel_style[0]
-                if len(channel_style) > 1:
-                    style = channel_style[1]
-                else:
-                    style = 'brief'
+            for slack_action in slack_actions:
+                channel = slack_action.destination
+                style = slack_action.style
                 try:
                     if style == 'brief':
                         await self.post_brief(slack, channel)

@@ -2,3 +2,4 @@ aioslacker
 aiohttp>=2.1
 aiosmtpd>=1.0
 pyyaml>=3.12
+asynctest

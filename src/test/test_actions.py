@@ -9,7 +9,7 @@ class ActionsTests(unittest.TestCase):
 
         act = actions.Actions(['mailto:a@b.c', 'mailto:d@e.f'])
 
-        self.assertEqual(act.mailto, ['a@b.c', 'd@e.f'])
+        self.assertEqual([a.destination for a in act.mailto], ['a@b.c', 'd@e.f'])
 
     def test_mixed_actions(self):
         actions.logging = MagicMock()
@@ -21,8 +21,9 @@ class ActionsTests(unittest.TestCase):
             'slack:@user:full'
         ])
 
-        self.assertEqual(act.mailto, ['a@b.c'])
-        self.assertEqual(act.slack, [['#channel'], ['@user', 'full']])
+        self.assertEqual([a.destination for a in act.mailto], ['a@b.c'])
+        self.assertEqual([a.destination for a in act.slack], ['#channel', '@user'])
+        self.assertEqual([a.style for a in act.slack], ['brief', 'full'])
         # noinspection PyUnresolvedReferences
         actions.logging.error.assert_called_with('Unexpected action: mailtoooooo:d@e.f')
 

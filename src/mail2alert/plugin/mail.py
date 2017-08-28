@@ -53,15 +53,15 @@ class Manager:
         for rule in self.rules(self.conf['rules']):
             logging.debug('Check %s', rule)
             actions = Actions(rule.check(msg, await self.rule_funcs))
-            recipients.extend(actions.mailto)
+            recipients.extend([a.destination for a in actions.mailto])
             if actions.slack:
                 await self.notify_slack(msg, actions.slack)
         return mail_from, recipients, binary_content
 
     @staticmethod
-    async def notify_slack(msg, channel_styles):
+    async def notify_slack(msg, slack_actions):
         sm = SlackMessage(msg)
-        await sm.post(channel_styles)
+        await sm.post(slack_actions)
 
     @staticmethod
     def get_message(content):
