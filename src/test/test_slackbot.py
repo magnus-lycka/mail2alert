@@ -17,7 +17,7 @@ class SlackMessageTests(unittest.TestCase):
         }
 
         self.assertEqual('Message from: a@b', sm.text)
-        self.assertEqual(attachment, sm.attachment)
+        self.assertEqual(attachment, sm.full_attachment)
 
 
 if __name__ == '__main__':

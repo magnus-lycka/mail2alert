@@ -6,10 +6,10 @@ class Actions:
         self.mailto = []
         self.slack = []
         for text in target_strings:
-            kind, what = text.split(':')
+            kind, *args = text.split(':')
             if kind == 'mailto':
-                self.mailto.append(what)
+                self.mailto.append(args[0])
             elif kind == 'slack':
-                self.slack.append(what)
+                self.slack.append(args)
             else:
                 logging.error('Unexpected action: ' + text)

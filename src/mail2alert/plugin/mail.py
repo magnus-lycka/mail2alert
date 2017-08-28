@@ -55,13 +55,13 @@ class Manager:
             actions = Actions(rule.check(msg, await self.rule_funcs))
             recipients.extend(actions.mailto)
             if actions.slack:
-                await self.notify_slack(actions.slack, msg)
+                await self.notify_slack(msg, actions.slack)
         return mail_from, recipients, binary_content
 
     @staticmethod
-    async def notify_slack(channels, msg):
+    async def notify_slack(msg, channel_styles):
         sm = SlackMessage(msg)
-        await sm.post(channels)
+        await sm.post(channel_styles)
 
     @staticmethod
     def get_message(content):

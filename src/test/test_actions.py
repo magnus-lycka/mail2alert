@@ -18,11 +18,11 @@ class ActionsTests(unittest.TestCase):
             'mailto:a@b.c',
             'mailtoooooo:d@e.f',
             'slack:#channel',
-            'slack:@user'
+            'slack:@user:full'
         ])
 
         self.assertEqual(act.mailto, ['a@b.c'])
-        self.assertEqual(act.slack, ['#channel', '@user'])
+        self.assertEqual(act.slack, [['#channel'], ['@user', 'full']])
         # noinspection PyUnresolvedReferences
         actions.logging.error.assert_called_with('Unexpected action: mailtoooooo:d@e.f')
 

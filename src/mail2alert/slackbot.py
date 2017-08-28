@@ -15,10 +15,18 @@ class SlackMessage:
         return "Message from: %s" % self.original.get('From')
 
     @property
-    def attachment(self):
+    def full_attachment(self):
         return dict(
             title=self.original['Subject'],
             text=self.original.body,
+            color=self.color
+        )
+
+    @property
+    def brief_attachment(self):
+        return dict(
+            title=self.original['Subject'],
+            text=self.original.body.split('\n')[0],
             color=self.color
         )
 
@@ -35,18 +43,39 @@ class SlackMessage:
             AlertLevels.DARK: '#666666',
         }[self.original.alert_level]
 
-    async def post(self, channels):
+    async def post(self, channel_styles):
         token = Configuration()['slack-token']
 
         async with Slacker(token) as slack:
-            for channel in channels:
+            for channel_style in channel_styles:
+                channel = channel_style[0]
+                if len(channel_style) > 1:
+                    style = channel_style[1]
+                else:
+                    style = 'brief'
                 try:
-                    logging.info("SlackMessage.post to %s", channel)
-                    await slack.chat.post_message(
-                        channel,
-                        text=self.text,
-                        attachments=[self.attachment]
-                    )
+                    if style == 'brief':
+                        await self.post_brief(slack, channel)
+                    elif style == 'full':
+                        await self.post_full(slack, channel)
+                    else:
+                        raise ValueError("Don't know slack message style: %s" % style)
                 except SlackerError as error:
                     logging.error("SlackMessage.post: error=%s", error)
                     logging.error("SlackMessage.post: channel=%s", channel)
+
+    async def post_full(self, slack, channel):
+        logging.info("SlackMessage.post full to %s", channel)
+        await slack.chat.post_message(
+            channel,
+            text=self.text,
+            attachments=[self.full_attachment]
+        )
+
+    async def post_brief(self, slack, channel):
+        logging.info("SlackMessage.post brief to %s", channel)
+        await slack.chat.post_message(
+            channel,
+            text='',
+            attachments=[self.brief_attachment]
+        )
